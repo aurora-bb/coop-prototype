@@ -177,6 +177,8 @@ type CartItem = {
 }
 
 const inStock = (items: CartItem[]) => items.filter((item) => !item.soldOut)
+const guestUnavailableProductId = 4
+const unavailableProductLabel = "Utilgjengelig akkurat nå"
 
 const overStock = (item: CartItem) =>
   item.stock !== undefined && item.quantity > item.stock
@@ -267,7 +269,7 @@ const initialCartItems: CartItem[] = [
     color: "Beige",
     brand: "BC Home",
     soldOut: true,
-    unavailableLabel: "Utilgjengelig akkurat nå",
+    unavailableLabel: unavailableProductLabel,
   },
 ]
 
@@ -627,6 +629,7 @@ function QuantityInput({
 
 function CartStep({
   items,
+  showUnavailableItems,
   appliedCoupons,
   onAppliedCouponsChange,
   onQuantityChange,
@@ -635,6 +638,7 @@ function CartStep({
   onNext,
 }: {
   items: CartItem[]
+  showUnavailableItems: boolean
   appliedCoupons: string[]
   onAppliedCouponsChange: (codes: string[]) => void
   onQuantityChange: (id: number, change: number) => void
@@ -645,7 +649,11 @@ function CartStep({
   const [couponOpen, setCouponOpen] = useState(appliedCoupons.length > 0)
   const [coupon, setCoupon] = useState("")
   const [couponError, setCouponError] = useState("")
-  const availableItems = inStock(items)
+  const [showUnavailableError, setShowUnavailableError] = useState(false)
+  const visibleItems = items.filter(
+    (item) => showUnavailableItems || !item.unavailableLabel,
+  )
+  const availableItems = inStock(visibleItems)
   const productTotal = availableItems.reduce(
     (sum, item) => sum + item.quantity * item.price,
     0,
@@ -676,7 +684,7 @@ function CartStep({
 
   const couponLimitReached = appliedCoupons.length === 3
 
-  const soldOutItems = items.filter((item) => item.soldOut)
+  const soldOutItems = visibleItems.filter((item) => item.soldOut)
 
   // One product card; used for both the regular list and the sold-out
   // section below it.
@@ -819,7 +827,7 @@ function CartStep({
   return (
     <>
       <h1>Dine varer</h1>
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <p className="cart-empty">Handlekurven din er tom.</p>
       ) : (
         <>
@@ -829,17 +837,8 @@ function CartStep({
           {/* Sold-out products get their own section at the bottom
               (Figma: Step 1_Unavailable products section). */}
           {soldOutItems.length > 0 && (
-            <section
-              className="unavailable-section"
-              aria-labelledby="unavailable-message"
-            >
-              <div className="status-message-warning" role="status">
-                <img src="/assets/38c35.svg" alt="" />
-                <p id="unavailable-message">
-                  Én eller flere varer kan ikke leveres. Fjern varen(e) for å
-                  gå videre.
-                </p>
-              </div>
+            <section className="unavailable-section">
+              <UnavailableSummary />
               <div className="cart-list">{soldOutItems.map(renderCard)}</div>
             </section>
           )}
@@ -972,17 +971,44 @@ function CartStep({
         <button
           className="button-next"
           type="button"
-          onClick={onNext}
+          onClick={() => {
+            if (soldOutItems.length > 0) {
+              setShowUnavailableError(true)
+              return
+            }
+            onNext()
+          }}
           disabled={
             !availableItems.length ||
+            (visibleItems.some(overStock) && soldOutItems.length === 0)
+          }
+          aria-disabled={
             soldOutItems.length > 0 ||
-            items.some(overStock)
+            !availableItems.length ||
+            visibleItems.some(overStock)
           }
         >
           Neste
         </button>
+        {showUnavailableError && soldOutItems.length > 0 && (
+          <p className="unavailable-button-message" role="status">
+            Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå
+            videre.
+          </p>
+        )}
       </div>
     </>
+  )
+}
+
+function UnavailableSummary() {
+  return (
+    <div className="status-message-warning" role="status">
+      <img src="/assets/38c35.svg" alt="" />
+      <p>
+        Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå videre.
+      </p>
+    </div>
   )
 }
 
@@ -1105,6 +1131,11 @@ function DetailsStep({
   const usesOtherAddress = !isGuest && address === "other"
   const complete = isAddressComplete(guestFields, values)
   const otherComplete = isAddressComplete(otherAddressFields, otherValues)
+  const canContinue =
+    loginState === "logged-in"
+      ? address === "registered" || otherComplete
+      : loginState === "guest" && complete
+  const [showContinueError, setShowContinueError] = useState(false)
   // 0000 has the right format but isn't a postcode we can deliver to; it
   // gets a status message at the bottom instead of a field error.
   const undeliverablePostcode = isGuest
@@ -1299,18 +1330,28 @@ function DetailsStep({
         <button className="button-back" type="button" onClick={onBack}>
           Tilbake
         </button>
-        <button
-          className="button-next"
-          type="button"
-          disabled={
-            loginState === "loading" ||
-            (isGuest && !complete) ||
-            (usesOtherAddress && !otherComplete)
-          }
-          onClick={onNext}
-        >
-          Neste
-        </button>
+        <div className="checkout-next-wrap">
+          <button
+            className="button-next"
+            type="button"
+            disabled={loginState === "loading"}
+            aria-disabled={!canContinue}
+            onClick={() => {
+              if (!canContinue) {
+                setShowContinueError(true)
+                return
+              }
+              onNext()
+            }}
+          >
+            Neste
+          </button>
+          {showContinueError && !canContinue && (
+            <p className="unavailable-button-message" role="status">
+              Logg inn eller fyll ut skjemaet for å gå videre til levering.
+            </p>
+          )}
+        </div>
       </div>
     </>
   )
@@ -1320,14 +1361,20 @@ function DeliveryProduct({
   item,
   appliedCoupons,
   last,
+  onRemove,
 }: {
   item: CartItem
   appliedCoupons: string[]
   last: boolean
+  onRemove?: (id: number) => void
 }) {
   const line = linePrice(item, appliedCoupons)
   return (
-    <div className={`product-card ${last ? "product-card-last" : ""}`}>
+    <div
+      className={`product-card ${
+        last ? "product-card-last" : ""
+      } ${item.unavailableLabel ? "product-card-unavailable" : ""}`}
+    >
       <img className="product-image" src={item.image} alt={item.name} />
       <div className="product-details">
         <p className="product-name">{item.name}</p>
@@ -1340,6 +1387,12 @@ function DeliveryProduct({
               .filter(Boolean)
               .join(", ")}
           </p>
+        )}
+        {item.unavailableLabel && (
+          <span className="sold-out-tag delivery-unavailable-tag">
+            <img src="/assets/9dc81.svg" alt="" />
+            {item.unavailableLabel}
+          </span>
         )}
         <p className="product-price">
           {line.coupon ? (
@@ -1358,6 +1411,16 @@ function DeliveryProduct({
           <p>Art.nr: {item.sku}</p>
         </div>
       </div>
+      {onRemove && (
+        <button
+          className="remove-item"
+          type="button"
+          aria-label={`Fjern ${item.name}`}
+          onClick={() => onRemove(item.id)}
+        >
+          <img src="/assets/product-card/28688.svg" alt="" />
+        </button>
+      )}
     </div>
   )
 }
@@ -1659,29 +1722,38 @@ function ShipmentSourceModal({
 
 function DeliveryStep({
   items,
+  unavailableItems,
   appliedCoupons,
   selections,
   selectedStores,
   onSelectionChange,
   onStoreChange,
+  onRemoveUnavailable,
   onBack,
   onNext,
 }: {
   items: CartItem[]
+  unavailableItems: CartItem[]
   appliedCoupons: string[]
   selections: string[]
   selectedStores: string[]
   onSelectionChange: (packageIndex: number, value: string) => void
   onStoreChange: (packageIndex: number, value: string) => void
+  onRemoveUnavailable: (id: number) => void
   onBack: () => void
   onNext: () => void
 }) {
   const [sourceModal, setSourceModal] = useState<SourceModalType | null>(null)
+  const [showUnavailableError, setShowUnavailableError] = useState(false)
+  const hasUnavailableItems = unavailableItems.length > 0
+  const deliverableItems = items.filter(
+    (item) => !unavailableItems.some(({ id }) => id === item.id),
+  )
   const visiblePackages = packages
     .map((item, index) => ({
       ...item,
       index,
-      products: items.filter((product) =>
+      products: deliverableItems.filter((product) =>
         item.productIds.includes(product.id),
       ),
     }))
@@ -1716,14 +1788,50 @@ function DeliveryStep({
           />
         ))}
       </div>
+      {unavailableItems.length > 0 && (
+        <section className="unavailable-section">
+          <UnavailableSummary />
+          <div className="section-block">
+            <h2>Varer som ikke kan leveres</h2>
+            <div className="product-list">
+              {unavailableItems.map((item, index) => (
+                <DeliveryProduct
+                  item={item}
+                  appliedCoupons={appliedCoupons}
+                  key={item.id}
+                  last={index === unavailableItems.length - 1}
+                  onRemove={onRemoveUnavailable}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
       <div className="checkout-actions">
         <button className="button-back" type="button" onClick={onBack}>
           Tilbake
         </button>
-        <button className="button-next" type="button" onClick={onNext}>
+        <button
+          className="button-next"
+          type="button"
+          aria-disabled={hasUnavailableItems}
+          onClick={() => {
+            if (hasUnavailableItems) {
+              setShowUnavailableError(true)
+              return
+            }
+            onNext()
+          }}
+        >
           Neste
         </button>
       </div>
+      {showUnavailableError && hasUnavailableItems && (
+        <p className="unavailable-button-message" role="status">
+          Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå
+          videre.
+        </p>
+      )}
       {sourceModal && (
         <ShipmentSourceModal
           source={sourceModal}
@@ -1777,6 +1885,7 @@ function PaymentStep({
 }) {
   const [payment, setPayment] = useState("coopay")
   const [accepted, setAccepted] = useState(false)
+  const [showTermsError, setShowTermsError] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [completed, setCompleted] = useState(false)
   const total = productTotal - discount + deliveryTotal
@@ -1877,7 +1986,10 @@ function PaymentStep({
           <input
             type="checkbox"
             checked={accepted}
-            onChange={(event) => setAccepted(event.target.checked)}
+            onChange={(event) => {
+              setAccepted(event.target.checked)
+              if (event.target.checked) setShowTermsError(false)
+            }}
           />
           <span>
             Jeg har lest og akseptert{" "}
@@ -1886,14 +1998,28 @@ function PaymentStep({
             </a>
           </span>
         </label>
-        <button
-          className="complete-order"
-          type="button"
-          disabled={!payment || !accepted}
-          onClick={() => setCompleted(true)}
-        >
-          Fullfør bestilling
-        </button>
+        <div className="complete-order-wrap">
+          <button
+            className="complete-order"
+            type="button"
+            disabled={!payment}
+            aria-disabled={!payment || !accepted}
+            onClick={() => {
+              if (!accepted) {
+                setShowTermsError(true)
+                return
+              }
+              setCompleted(true)
+            }}
+          >
+            Fullfør bestilling
+          </button>
+          {showTermsError && !accepted && (
+            <p className="unavailable-button-message" role="status">
+              For å fullføre bestillingen må du godta kjøpsvilkårene.
+            </p>
+          )}
+        </div>
       </section>
 
       <div className="checkout-actions payment-back">
@@ -1915,6 +2041,7 @@ const showPrototypeLabel =
   new URLSearchParams(window.location.search).get("label") !== "0"
 const initialLoggedInVariant =
   new URLSearchParams(window.location.search).get("variant") === "logged-in"
+const isPasswordProtectionEnabled = false
 
 export default function App() {
   const [isPasswordAccepted, setIsPasswordAccepted] = useState(false)
@@ -1922,13 +2049,29 @@ export default function App() {
   const [passwordError, setPasswordError] = useState(false)
   const [currentStep, setCurrentStep] = useState(initialStep)
   const [highestVisitedStep, setHighestVisitedStep] = useState(initialStep)
+  const [isVariantSelectorHidden, setIsVariantSelectorHidden] = useState(false)
+  const previousScrollY = useRef(window.scrollY)
   const [cartItems, setCartItems] = useState<CartItem[]>(initialCartItems)
   const [deliverySelections, setDeliverySelections] = useState(
     defaultDeliverySelections,
   )
   const [selectedStores, setSelectedStores] = useState(defaultSelectedStores)
+  const [checkoutVariant, setCheckoutVariant] = useState(
+    initialLoggedInVariant,
+  )
   const [isLoggedIn, setIsLoggedIn] = useState(initialLoggedInVariant)
   const [appliedCoupons, setAppliedCoupons] = useState<string[]>([])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      setIsVariantSelectorHidden(currentScrollY > previousScrollY.current)
+      previousScrollY.current = currentScrollY
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
 
   const goToStep = (step: number) => {
     setHighestVisitedStep((current) => Math.max(current, step))
@@ -1940,6 +2083,7 @@ export default function App() {
     setCartItems(initialCartItems)
     setDeliverySelections(defaultDeliverySelections)
     setSelectedStores(defaultSelectedStores)
+    setCheckoutVariant(loggedIn)
     setIsLoggedIn(loggedIn)
     setAppliedCoupons([])
     setHighestVisitedStep(1)
@@ -1947,7 +2091,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const restart = () => resetCheckout(isLoggedIn)
+  const restart = () => resetCheckout(checkoutVariant)
 
   const availableItems = inStock(cartItems)
   const productTotal = availableItems.reduce(
@@ -1967,7 +2111,7 @@ export default function App() {
   const updateAt = <T,>(list: T[], index: number, value: T) =>
     list.map((current, position) => (position === index ? value : current))
 
-  if (!isPasswordAccepted) {
+  if (isPasswordProtectionEnabled && !isPasswordAccepted) {
     const checkPassword = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       if (password === "1405") {
@@ -2020,19 +2164,21 @@ export default function App() {
           Prototype
         </p>
       )}
-      <label className="prototype-variant">
-        <span>Vis variant</span>
-        <select
-          aria-label="Velg prototypevariant"
-          value={isLoggedIn ? "logged-in" : "guest"}
-          onChange={(event) =>
-            resetCheckout(event.target.value === "logged-in")
-          }
-        >
-          <option value="guest">Ikke logget inn</option>
-          <option value="logged-in">Allerede logget inn</option>
-        </select>
-      </label>
+      {currentStep === 1 && !isVariantSelectorHidden && (
+        <label className="prototype-variant">
+          <span>Vis variant</span>
+          <select
+            aria-label="Velg prototypevariant"
+            value={checkoutVariant ? "logged-in" : "guest"}
+            onChange={(event) =>
+              resetCheckout(event.target.value === "logged-in")
+            }
+          >
+            <option value="guest">Ikke logget inn</option>
+            <option value="logged-in">Allerede logget inn</option>
+          </select>
+        </label>
+      )}
       <CheckoutHeader />
       <main className="checkout-content">
         <Stepper
@@ -2044,6 +2190,7 @@ export default function App() {
           {currentStep === 1 && (
             <CartStep
               items={cartItems}
+              showUnavailableItems={checkoutVariant}
               appliedCoupons={appliedCoupons}
               onAppliedCouponsChange={setAppliedCoupons}
               onQuantityChange={(id, change) =>
@@ -2093,6 +2240,17 @@ export default function App() {
           {currentStep === 3 && (
             <DeliveryStep
               items={availableItems}
+              unavailableItems={
+                checkoutVariant
+                  ? []
+                  : cartItems
+                      .filter((item) => item.id === guestUnavailableProductId)
+                      .map((item) => ({
+                        ...item,
+                        soldOut: true,
+                        unavailableLabel: unavailableProductLabel,
+                      }))
+              }
               appliedCoupons={appliedCoupons}
               selections={deliverySelections}
               selectedStores={selectedStores}
@@ -2103,6 +2261,11 @@ export default function App() {
               }
               onStoreChange={(index, value) =>
                 setSelectedStores((current) => updateAt(current, index, value))
+              }
+              onRemoveUnavailable={(id) =>
+                setCartItems((current) =>
+                  current.filter((item) => item.id !== id),
+                )
               }
               onBack={() => goToStep(2)}
               onNext={() => goToStep(4)}

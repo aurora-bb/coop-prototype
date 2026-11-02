@@ -296,8 +296,37 @@ html {
 }
 
 .single-action {
+  align-items: flex-end;
+  flex-direction: column;
   justify-content: flex-end;
   margin-top: 28px;
+}
+
+.unavailable-button-message {
+  max-width: 100%;
+  margin-top: 8px;
+  color: #1f1f1f;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.complete-order-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkout-next-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.complete-order-wrap .unavailable-button-message {
+  margin-top: 0;
+  text-align: left;
 }
 
 .button-back {
@@ -319,7 +348,9 @@ html {
 }
 
 .checkout-actions button:disabled,
-.complete-order:disabled {
+.checkout-actions .button-next[aria-disabled='true'],
+.complete-order:disabled,
+.complete-order[aria-disabled='true'] {
   background: #d4d4d4;
   color: #737373;
   cursor: not-allowed;
@@ -1138,6 +1169,23 @@ html {
   border-bottom: 0;
 }
 
+.product-card-unavailable .product-image {
+  opacity: 0.3;
+}
+
+.product-card-unavailable .product-name,
+.product-card-unavailable .product-muted,
+.product-card-unavailable .product-price,
+.product-card-unavailable .product-meta {
+  color: #5c5c5c;
+}
+
+.product-card-unavailable .remove-item {
+  align-self: flex-end;
+  flex: 0 0 46px;
+  margin-left: auto;
+}
+
 .product-image {
   width: 56px;
   height: 56px;
@@ -1492,9 +1540,9 @@ html {
   gap: 8px;
 }
 
-.payment-option strong {
+.payment-option .payment-title > strong {
   font-family: 'Coop Sans:Medium', Arial, sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
 }
@@ -1604,7 +1652,7 @@ html {
   justify-content: space-between;
   padding: 14px 20px;
   font-family: 'Coop Sans:Medium', Arial, sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   text-align: left;
 }
 
@@ -2071,6 +2119,10 @@ html {
   height: 16px;
 }
 
+.delivery-unavailable-tag {
+  margin: 16px 0;
+}
+
 /* Danger status message, from Figma (StatusMessage, "Ugyldig postnummer"). */
 .status-message {
   display: flex;
@@ -2299,10 +2351,10 @@ html {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid #d4d4d4;
+  border: 0;
   border-radius: 8px;
   background: #fff;
-  padding: 6px 8px;
+  padding: 8px 10px;
   box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
   color: #1f1f1f;
   font-size: 13px;
@@ -2313,11 +2365,15 @@ html {
 }
 
 .prototype-variant select {
+  appearance: none;
   max-width: 190px;
   border: 1px solid #858585;
   border-radius: 4px;
   background: #fff;
-  padding: 4px 24px 4px 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%231f1f1f' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding: 4px 30px 4px 6px;
   font-size: 13px;
 }
 

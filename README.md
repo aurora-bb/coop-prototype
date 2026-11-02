@@ -82,6 +82,6 @@ See `.github/copilot-instructions.md` for code conventions.
 
 The prototype is a static site (`npm run build` → `dist/`). It can be hosted on e.g. Vercel, Netlify or
 Cloudflare Pages. Because it uses real Obs/Coop branding, always put it behind a login or password and
-add `noindex` before sharing a link. The in-app password screen is only a casual-use barrier: its
-password is included in the public JavaScript bundle, so it does not protect the site or its assets.
+add `noindex` before sharing a link. The in-app password screen is currently disabled; if re-enabled,
+it is only a casual-use barrier because its password is included in the public JavaScript bundle.
 Use hosting-level access control for any restricted deployment.
