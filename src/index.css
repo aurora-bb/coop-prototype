@@ -2291,6 +2291,48 @@ html {
   transform: rotate(45deg);
 }
 
+.prototype-variant {
+  position: fixed;
+  z-index: 901;
+  top: 12px;
+  right: 176px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 8px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
+  color: #1f1f1f;
+  font-size: 13px;
+}
+
+.prototype-variant span {
+  white-space: nowrap;
+}
+
+.prototype-variant select {
+  max-width: 190px;
+  border: 1px solid #858585;
+  border-radius: 4px;
+  background: #fff;
+  padding: 4px 24px 4px 6px;
+  font-size: 13px;
+}
+
+.prototype-variant select:focus-visible {
+  outline: 2px solid #0059b2;
+  outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+  .prototype-variant {
+    top: 108px;
+    right: 12px;
+  }
+}
+
 /* Sold-out products, in their own section below the cart (Figma: Step
    1_Unavailable products section). */
 .unavailable-section {

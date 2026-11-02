@@ -26,14 +26,17 @@ Other commands:
 
 ## Using the prototype
 
-Reload the page to reset everything (cart, login, discount codes, delivery choices).
+Use the variant selector in the top-right corner to switch between guest and
+already-logged-in checkout flows. Switching variants resets the cart, delivery
+choices and discount codes.
 
 | URL parameter | What it does |
 | --- | --- |
 | `?steg=1` … `?steg=4` | Opens the prototype directly on a step |
+| `?variant=logged-in` | Starts in the already-logged-in flow |
 | `?label=0` | Hides the pink "PROTOTYPE" ribbon (e.g. for screenshots) |
 
-Example: `http://localhost:5173/?steg=3&label=0`
+Example: `http://localhost:5173/?variant=logged-in`
 
 ### What you can try
 
@@ -50,6 +53,7 @@ Example: `http://localhost:5173/?steg=3&label=0`
 
 **Step 2 – Opplysninger**
 - "Logg inn" simulates a member login and shows a saved address, or "Annen adresse" with its own form.
+- The prototype selector can also start the checkout directly with a saved address.
 - Guest form validation (shown when leaving a field): required fields, 2–50 characters for names and address, 4-digit postcode, 8-digit phone number, valid e-mail.
 - Postcode `0000` shows the "Ugyldig postnummer" message.
 

@@ -1913,6 +1913,8 @@ const initialStep = Math.min(
 
 const showPrototypeLabel =
   new URLSearchParams(window.location.search).get("label") !== "0"
+const initialLoggedInVariant =
+  new URLSearchParams(window.location.search).get("variant") === "logged-in"
 
 export default function App() {
   const [isPasswordAccepted, setIsPasswordAccepted] = useState(false)
@@ -1925,7 +1927,7 @@ export default function App() {
     defaultDeliverySelections,
   )
   const [selectedStores, setSelectedStores] = useState(defaultSelectedStores)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(initialLoggedInVariant)
   const [appliedCoupons, setAppliedCoupons] = useState<string[]>([])
 
   const goToStep = (step: number) => {
@@ -1934,15 +1936,18 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const restart = () => {
+  const resetCheckout = (loggedIn: boolean) => {
     setCartItems(initialCartItems)
     setDeliverySelections(defaultDeliverySelections)
     setSelectedStores(defaultSelectedStores)
-    setIsLoggedIn(false)
+    setIsLoggedIn(loggedIn)
     setAppliedCoupons([])
     setHighestVisitedStep(1)
-    goToStep(1)
+    setCurrentStep(1)
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
+
+  const restart = () => resetCheckout(isLoggedIn)
 
   const availableItems = inStock(cartItems)
   const productTotal = availableItems.reduce(
@@ -2015,6 +2020,19 @@ export default function App() {
           Prototype
         </p>
       )}
+      <label className="prototype-variant">
+        <span>Vis variant</span>
+        <select
+          aria-label="Velg prototypevariant"
+          value={isLoggedIn ? "logged-in" : "guest"}
+          onChange={(event) =>
+            resetCheckout(event.target.value === "logged-in")
+          }
+        >
+          <option value="guest">Ikke logget inn</option>
+          <option value="logged-in">Allerede logget inn</option>
+        </select>
+      </label>
       <CheckoutHeader />
       <main className="checkout-content">
         <Stepper
@@ -2065,6 +2083,7 @@ export default function App() {
           )}
           {currentStep === 2 && (
             <DetailsStep
+              key={isLoggedIn ? "logged-in" : "guest"}
               onBack={() => goToStep(1)}
               onNext={() => goToStep(3)}
               isLoggedIn={isLoggedIn}
