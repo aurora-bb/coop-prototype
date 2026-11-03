@@ -13,6 +13,21 @@ import {
 
 const steps = ["Varer", "Opplysninger", "Levering", "Betaling"]
 
+const assetUrl = (path: string) =>
+  `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`
+
+type CheckoutVariant =
+  | "guest"
+  | "logged-in"
+  | "click-and-collect"
+  | "click-and-collect-logged-in"
+
+const isPreLoggedInVariant = (variant: CheckoutVariant) =>
+  variant === "logged-in" || variant === "click-and-collect-logged-in"
+const isClickAndCollectVariant = (variant: CheckoutVariant) =>
+  variant === "click-and-collect" ||
+  variant === "click-and-collect-logged-in"
+
 type DeliveryOption = {
   id: string
   title: string
@@ -52,6 +67,16 @@ const clickAndCollectPicker: DeliveryPicker = {
     value: label,
     label,
   })),
+}
+
+const clickAndCollectDeliveryOption: DeliveryOption = {
+  id: "pickup",
+  title: "Klikk og hent",
+  description:
+    "Normalt klar for henting innen 2 timer innenfor butikkens åpningstid.",
+  extra: "Du får SMS når varene er klare for henting.",
+  price: 0,
+  picker: clickAndCollectPicker,
 }
 
 // Package 1: Obs stores it can be sent to, and nearby Postnord pickup points.
@@ -105,15 +130,7 @@ const obsStoreDeliveryOptions: DeliveryOption[] = [
       "Leveres til gateplan. Du vil motta en melding fra Postnord når pakken er klar for levering.",
     price: 122.85,
   },
-  {
-    id: "pickup",
-    title: "Klikk og hent",
-    description:
-      "Normalt klar for henting innen 2 timer innenfor butikkens åpningstid.",
-    extra: "Du får SMS når varene er klare for henting.",
-    price: 0,
-    picker: clickAndCollectPicker,
-  },
+  clickAndCollectDeliveryOption,
 ]
 
 // Package 1 is sent from the central warehouse.
@@ -134,6 +151,12 @@ const warehouseDeliveryOptions: DeliveryOption[] = [
     price: 149,
     picker: stovnerPostnordPicker,
   },
+]
+const clickAndCollectVariantOptions = [
+  clickAndCollectDeliveryOption,
+  warehouseDeliveryOptions[0],
+  warehouseDeliveryOptions[1],
+  obsStoreDeliveryOptions[1],
 ]
 const packages = [
   {
@@ -189,7 +212,7 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "Okidoki Ullio ulltrøye barn",
     price: 149.5,
-    image: "/assets/products/okidoki-ullio-ulltroye.jpg",
+    image: assetUrl("assets/products/okidoki-ullio-ulltroye.jpg"),
     url: "https://www.obs.no/klar/barneklar/ull-barn/ulltroyer-barn/2893465?v=Obs-7025180737136",
     sku: "7025180737136",
     size: "2–3 år",
@@ -201,7 +224,7 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "Okidoki Ullio ullongs barn",
     price: 149.5,
-    image: "/assets/products/okidoki-ullio-ullongs.jpg",
+    image: assetUrl("assets/products/okidoki-ullio-ullongs.jpg"),
     url: "https://www.obs.no/klar/barneklar/ull-barn/ullongs-og-ullstrompebukser-barn/2893463?v=Obs-7025180737372",
     sku: "7025180737372",
     size: "2–3 år",
@@ -213,7 +236,7 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "LEGO® Friends Isbilen i Heartlake City 42644",
     price: 279,
-    image: "/assets/products/lego-friends-isbil.jpg",
+    image: assetUrl("assets/products/lego-friends-isbil.jpg"),
     url: "https://www.obs.no/leker/lego/lego-friends/2878262?v=Obs-5702017783734",
     sku: "5702017783734",
     brand: "LEGO",
@@ -224,7 +247,7 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "Hot Wheels® julekalender 2026",
     price: 399,
-    image: "/assets/products/hot-wheels-julekalender.jpg",
+    image: assetUrl("assets/products/hot-wheels-julekalender.jpg"),
     url: "https://www.obs.no/fest-og-hoytid/jul/julekalender/3004575?v=Obs-194735363384",
     sku: "194735363384",
     brand: "Hot Wheels",
@@ -235,7 +258,7 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "Lysslynge med LED-lys",
     price: 99.9,
-    image: "/assets/products/lysslynge-led.jpg",
+    image: assetUrl("assets/products/lysslynge-led.jpg"),
     url: "https://www.obs.no/fest-og-hoytid/jul/julelys/2804537?v=Obs-8720573808125",
     sku: "8720573808125",
     size: "6 m – 80 lys",
@@ -249,7 +272,7 @@ const initialCartItems: CartItem[] = [
     name: "Brother CS10S symaskin",
     price: 1953,
     beforePrice: 2790,
-    image: "/assets/products/brother-cs10s-symaskin.jpg",
+    image: assetUrl("assets/products/brother-cs10s-symaskin.jpg"),
     url: "https://www.obs.no/elektronikk/symaskin/2088120?v=Obs-4977766808408",
     sku: "4977766808408",
     color: "Hvit",
@@ -262,7 +285,7 @@ const initialCartItems: CartItem[] = [
     name: "BC Home Krus Lykken Pappa",
     price: 49,
     beforePrice: 79,
-    image: "/assets/products/bc-home-krus-lykken-pappa.jpg",
+    image: assetUrl("assets/products/bc-home-krus-lykken-pappa.jpg"),
     url: "https://www.obs.no/kjokkenutstyr/borddekking/krus/2810188?v=Obs-7070056142675",
     sku: "7070056142675",
     size: "2,5 dl",
@@ -435,13 +458,13 @@ function CheckoutHeader() {
           "Hent i butikk - gratis og enkelt",
         ].map((usp) => (
           <span key={usp}>
-            <img src="/assets/usp-check.svg" alt="" />
+            <img src={assetUrl("assets/usp-check.svg")} alt="" />
             {usp}
           </span>
         ))}
       </div>
       <header className="checkout-header brand-bar">
-        <img src="/assets/step1/0d88f.svg" alt="Obs" />
+        <img src={assetUrl("assets/step1/0d88f.svg")} alt="Obs" />
       </header>
     </>
   )
@@ -501,12 +524,12 @@ function CheckoutFooter() {
       <div className="footer-logos">
         <img
           className="coop-logo"
-          src="/assets/step1/f171b.svg"
+          src={assetUrl("assets/step1/f171b.svg")}
           alt="Coop litt ditt"
         />
         <img
           className="obs-white-logo"
-          src="/assets/step1/03639.svg"
+          src={assetUrl("assets/step1/03639.svg")}
           alt="Obs"
         />
       </div>
@@ -556,7 +579,7 @@ function CheckoutFooter() {
           <div className="option-tiles">
             {Array.from({ length: 4 }, (_, index) => (
               <span key={index}>
-                <img src="/assets/step1/268b2.png" alt="" />
+                <img src={assetUrl("assets/step1/268b2.png")} alt="" />
               </span>
             ))}
           </div>
@@ -566,7 +589,7 @@ function CheckoutFooter() {
           <div className="option-tiles">
             {Array.from({ length: 2 }, (_, index) => (
               <span key={index}>
-                <img src="/assets/step1/268b2.png" alt="" />
+                <img src={assetUrl("assets/step1/268b2.png")} alt="" />
               </span>
             ))}
           </div>
@@ -574,10 +597,10 @@ function CheckoutFooter() {
       </div>
       <div className="footer-badges">
         <span>
-          <img src="/assets/step1/a1c58.png" alt="" /> Garantert fornøyd
+          <img src={assetUrl("assets/step1/a1c58.png")} alt="" /> Garantert fornøyd
         </span>
         <span>
-          <img src="/assets/step1/4dfae.png" alt="" /> Trygg E-Handel
+          <img src={assetUrl("assets/step1/4dfae.png")} alt="" /> Trygg E-Handel
         </span>
       </div>
     </footer>
@@ -630,6 +653,7 @@ function QuantityInput({
 function CartStep({
   items,
   showUnavailableItems,
+  clickAndCollectStore,
   appliedCoupons,
   onAppliedCouponsChange,
   onQuantityChange,
@@ -639,6 +663,7 @@ function CartStep({
 }: {
   items: CartItem[]
   showUnavailableItems: boolean
+  clickAndCollectStore?: string
   appliedCoupons: string[]
   onAppliedCouponsChange: (codes: string[]) => void
   onQuantityChange: (id: number, change: number) => void
@@ -720,7 +745,7 @@ function CartStep({
                 </div>
                 {item.soldOut && (
                   <span className="sold-out-tag">
-                    <img src="/assets/9dc81.svg" alt="" />
+                    <img src={assetUrl("assets/9dc81.svg")} alt="" />
                     {item.unavailableLabel ?? "Utsolgt"}
                   </span>
                 )}
@@ -728,7 +753,7 @@ function CartStep({
                   {overStock(item) && (
                     <>
                       <span className="stock-tag">
-                        <img src="/assets/ac43e.svg" alt="" />
+                        <img src={assetUrl("assets/ac43e.svg")} alt="" />
                         Ikke nok på lager
                       </span>
                       <span className="stock-badge">
@@ -778,8 +803,8 @@ function CartStep({
                         <img
                           src={
                             item.quantity === 1
-                              ? "/assets/667d5.svg"
-                              : "/assets/7efcd.svg"
+                              ? assetUrl("assets/667d5.svg")
+                              : assetUrl("assets/7efcd.svg")
                           }
                           alt=""
                         />
@@ -800,8 +825,8 @@ function CartStep({
                         <img
                           src={
                             overStock(item)
-                              ? "/assets/814c4.svg"
-                              : "/assets/3e3c3.svg"
+                              ? assetUrl("assets/814c4.svg")
+                              : assetUrl("assets/3e3c3.svg")
                           }
                           alt=""
                         />
@@ -814,7 +839,7 @@ function CartStep({
                       aria-label={`Fjern ${item.name}`}
                       onClick={() => onRemove(item.id)}
                     >
-                      <img src="/assets/product-card/28688.svg" alt="" />
+                      <img src={assetUrl("assets/product-card/28688.svg")} alt="" />
                     </button>
                   </div>
                 </div>
@@ -827,6 +852,9 @@ function CartStep({
   return (
     <>
       <h1>Dine varer</h1>
+      {clickAndCollectStore && (
+        <ClickAndCollectHeading store={clickAndCollectStore} />
+      )}
       {visibleItems.length === 0 ? (
         <p className="cart-empty">Handlekurven din er tom.</p>
       ) : (
@@ -853,9 +881,9 @@ function CartStep({
           aria-expanded={couponOpen}
         >
           <span>
-            <img src="/assets/42e03.svg" alt="" /> Rabattkode
+            <img src={assetUrl("assets/42e03.svg")} alt="" /> Rabattkode
           </span>
-          <img src="/assets/e83ab.svg" alt="" />
+          <img src={assetUrl("assets/e83ab.svg")} alt="" />
         </button>
         {couponOpen && (
           <form className="coupon-form" onSubmit={applyCoupon}>
@@ -894,7 +922,7 @@ function CartStep({
                         setCouponError("")
                       }}
                     >
-                      <img src="/assets/fb6a1.svg" alt="" />
+                      <img src={assetUrl("assets/fb6a1.svg")} alt="" />
                     </button>
                   )}
                 </div>
@@ -921,7 +949,7 @@ function CartStep({
               <div className="coupon-list" aria-live="polite">
                 {appliedCoupons.map((appliedCoupon) => (
                   <div className="coupon-item" key={appliedCoupon}>
-                    <img src="/assets/d64ef.svg" alt="" />
+                    <img src={assetUrl("assets/d64ef.svg")} alt="" />
                     <span>Rabattkode: {appliedCoupon}</span>
                     <button
                       type="button"
@@ -1004,7 +1032,7 @@ function CartStep({
 function UnavailableSummary() {
   return (
     <div className="status-message-warning" role="status">
-      <img src="/assets/38c35.svg" alt="" />
+      <img src={assetUrl("assets/38c35.svg")} alt="" />
       <p>
         Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå videre.
       </p>
@@ -1182,7 +1210,7 @@ function DetailsStep({
               {address === "registered" ? (
                 <img
                   className="address-radio-image"
-                  src="/assets/step2-logged/4f45e.svg"
+                  src={assetUrl("assets/step2-logged/4f45e.svg")}
                   alt=""
                 />
               ) : (
@@ -1224,7 +1252,7 @@ function DetailsStep({
                 {address === "other" ? (
                   <img
                     className="address-radio-image"
-                    src="/assets/step2-logged/4f45e.svg"
+                    src={assetUrl("assets/step2-logged/4f45e.svg")}
                     alt=""
                   />
                 ) : (
@@ -1259,7 +1287,7 @@ function DetailsStep({
                 "Rask og enkel betaling med Coopay",
               ].map((benefit) => (
                 <span key={benefit}>
-                  <img src="/assets/step2/003e4.svg" alt="" /> {benefit}
+                  <img src={assetUrl("assets/step2/003e4.svg")} alt="" /> {benefit}
                 </span>
               ))}
             </div>
@@ -1315,7 +1343,7 @@ function DetailsStep({
         {undeliverablePostcode && (
           <div className="status-message status-message-danger" role="alert">
             <p className="status-message-heading">
-              <img src="/assets/59fc8.svg" alt="" />
+              <img src={assetUrl("assets/59fc8.svg")} alt="" />
               Ugyldig postnummer
             </p>
             <p>
@@ -1390,7 +1418,7 @@ function DeliveryProduct({
         )}
         {item.unavailableLabel && (
           <span className="sold-out-tag delivery-unavailable-tag">
-            <img src="/assets/9dc81.svg" alt="" />
+            <img src={assetUrl("assets/9dc81.svg")} alt="" />
             {item.unavailableLabel}
           </span>
         )}
@@ -1418,9 +1446,22 @@ function DeliveryProduct({
           aria-label={`Fjern ${item.name}`}
           onClick={() => onRemove(item.id)}
         >
-          <img src="/assets/product-card/28688.svg" alt="" />
+          <img src={assetUrl("assets/product-card/28688.svg")} alt="" />
         </button>
       )}
+    </div>
+  )
+}
+
+function ClickAndCollectHeading({ store }: { store: string }) {
+  return (
+    <div className="click-and-collect-heading">
+      <span className="click-and-collect-heading-icon">
+        <img src={assetUrl("assets/click-and-collect-store.svg")} alt="" />
+      </span>
+      <p>
+        <strong>Klikk og hent:</strong> {store}
+      </p>
     </div>
   )
 }
@@ -1433,10 +1474,13 @@ type PackageCardProps = {
   appliedCoupons: string[]
   selected: string
   selectedStore: string
+  isClickAndCollect: boolean
+  showPackageHeading: boolean
   onSelect: (value: string) => void
   onStoreSelect: (value: string) => void
   onSourceClick: (source: string) => void
   options: DeliveryOption[]
+  featuredOptionId?: string
 }
 
 function PackageCard({
@@ -1447,36 +1491,52 @@ function PackageCard({
   appliedCoupons,
   selected,
   selectedStore,
+  isClickAndCollect,
+  showPackageHeading,
   onSelect,
   onStoreSelect,
   onSourceClick,
   options,
+  featuredOptionId,
 }: PackageCardProps) {
+  const [moreOptionsExpanded, setMoreOptionsExpanded] = useState(false)
+  const visibleOptions =
+    featuredOptionId && !moreOptionsExpanded
+      ? options.filter(
+          (option) =>
+            option.id === featuredOptionId || option.id === selected,
+        )
+      : options
+
   return (
     <section
-      className="package-card"
+      className={`package-card ${
+        packageCount === 1 ? "package-card-single" : ""
+      }`}
       aria-labelledby={`package-${packageIndex}`}
     >
-      <div className="package-heading">
-        <div className="package-title-wrap">
-          <h2 id={`package-${packageIndex}`}>Pakke {packageIndex}</h2>
-          <span>
-            ({packageIndex} av {packageCount})
-          </span>
+      {showPackageHeading && (
+        <div className="package-heading">
+          <div className="package-title-wrap">
+            <h2 id={`package-${packageIndex}`}>Pakke {packageIndex}</h2>
+            <span>
+              ({packageIndex} av {packageCount})
+            </span>
+          </div>
+          <button
+            className="source-tag"
+            type="button"
+            onClick={() => onSourceClick(source)}
+            aria-haspopup="dialog"
+          >
+            <img src={assetUrl("assets/0d418.svg")} alt="" />
+            {source}
+          </button>
         </div>
-        <button
-          className="source-tag"
-          type="button"
-          onClick={() => onSourceClick(source)}
-          aria-haspopup="dialog"
-        >
-          <img src="/assets/0d418.svg" alt="" />
-          {source}
-        </button>
-      </div>
+      )}
 
       <div className="section-block">
-        <h3>Varer i denne pakken</h3>
+        {!isClickAndCollect && <h3>Varer i denne pakken</h3>}
         <div className="product-list">
           {productItems.map((item, index) => (
             <DeliveryProduct
@@ -1492,72 +1552,97 @@ function PackageCard({
       <fieldset className="section-block delivery-fieldset">
         <legend>Velg levering</legend>
         <div className="delivery-list">
-          {options.map((option) => {
-            const active = selected === option.id
-            return (
-              <label
-                className={`delivery-option ${
-                  active ? "delivery-option-selected" : ""
-                }`}
-                key={option.id}
-              >
-                <input
-                  type="radio"
-                  name={`delivery-${packageIndex}`}
-                  value={option.id}
-                  checked={active}
-                  onChange={(event) => onSelect(event.target.value)}
-                />
-                <span className="radio-mark" aria-hidden="true" />
-                <span className="delivery-copy">
-                  <span className="delivery-title">{option.title}</span>
-                  <span className="delivery-description">
-                    {option.description}
-                  </span>
-                  {/* Extra info only shows for the selected option. */}
-                  {option.extra && active && (
-                    <span className="delivery-description">{option.extra}</span>
-                  )}
-                  {option.picker && active && (
-                    <span className="store-picker">
-                      {option.picker.label && (
-                        <span className="store-label">
-                          {option.picker.label}
+          <div
+            className="delivery-options"
+            id={`delivery-options-${packageIndex}`}
+          >
+            {visibleOptions.map((option) => {
+              const active = selected === option.id
+              return (
+                <label
+                  className={`delivery-option ${
+                    active ? "delivery-option-selected" : ""
+                  }`}
+                  key={option.id}
+                >
+                  <input
+                    type="radio"
+                    name={`delivery-${packageIndex}`}
+                    value={option.id}
+                    checked={active}
+                    onChange={(event) => onSelect(event.target.value)}
+                  />
+                  <span className="radio-mark" aria-hidden="true" />
+                  <span className="delivery-copy">
+                    <span className="delivery-title">{option.title}</span>
+                    <span className="delivery-description">
+                      {option.description}
+                    </span>
+                    {/* Extra info only shows for the selected option. */}
+                    {option.extra && active && (
+                      <span className="delivery-description">
+                        {option.extra}
+                      </span>
+                    )}
+                    {option.picker &&
+                      active &&
+                      !(isClickAndCollect && option.id === "pickup") && (
+                        <span className="store-picker">
+                          {option.picker.label && (
+                            <span className="store-label">
+                              {option.picker.label}
+                            </span>
+                          )}
+                          <span className="select-wrap">
+                            <select
+                              // Falls back to the first choice when the stored
+                              // value belongs to another option's list.
+                              value={
+                                option.picker.choices.some(
+                                  (choice) => choice.value === selectedStore,
+                                )
+                                  ? selectedStore
+                                  : option.picker.choices[0].value
+                              }
+                              onChange={(event) =>
+                                onStoreSelect(event.target.value)
+                              }
+                              aria-label={`${option.picker.ariaLabel} for pakke ${packageIndex}`}
+                            >
+                              {option.picker.choices.map((choice) => (
+                                <option
+                                  value={choice.value}
+                                  key={choice.value}
+                                >
+                                  {choice.label}
+                                </option>
+                              ))}
+                            </select>
+                          </span>
                         </span>
                       )}
-                      <span className="select-wrap">
-                        <select
-                          // Falls back to the first choice when the stored
-                          // value belongs to another option's list.
-                          value={
-                            option.picker.choices.some(
-                              (choice) => choice.value === selectedStore,
-                            )
-                              ? selectedStore
-                              : option.picker.choices[0].value
-                          }
-                          onChange={(event) =>
-                            onStoreSelect(event.target.value)
-                          }
-                          aria-label={`${option.picker.ariaLabel} for pakke ${packageIndex}`}
-                        >
-                          {option.picker.choices.map((choice) => (
-                            <option value={choice.value} key={choice.value}>
-                              {choice.label}
-                            </option>
-                          ))}
-                        </select>
-                      </span>
-                    </span>
-                  )}
-                </span>
-                <span className="delivery-price">
-                  {formatPrice(option.price)}
-                </span>
-              </label>
-            )
-          })}
+                  </span>
+                  <span className="delivery-price">
+                    {formatPrice(option.price)}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
         </div>
+        {featuredOptionId && (
+          <button
+            className="delivery-more-options"
+            type="button"
+            aria-expanded={moreOptionsExpanded}
+            aria-controls={`delivery-options-${packageIndex}`}
+            onClick={() => setMoreOptionsExpanded((expanded) => !expanded)}
+          >
+            {moreOptionsExpanded
+              ? "Vis færre leveringsalternativer"
+              : "Vis flere leveringsalternativer"}
+          </button>
+        )}
       </fieldset>
     </section>
   )
@@ -1695,7 +1780,7 @@ function ShipmentSourceModal({
             onClick={onClose}
             aria-label="Lukk"
           >
-            <img src="/assets/shipment-modal/43127.svg" alt="" />
+            <img src={assetUrl("assets/shipment-modal/43127.svg")} alt="" />
           </button>
         </header>
         <div className="shipment-modal-content">
@@ -1707,7 +1792,7 @@ function ShipmentSourceModal({
                 <details key={item.question} name="shipment-faq">
                   <summary>
                     <span>{item.question}</span>
-                    <img src="/assets/57c77.svg" alt="" />
+                    <img src={assetUrl("assets/57c77.svg")} alt="" />
                   </summary>
                   <p>{item.answer}</p>
                 </details>
@@ -1723,22 +1808,28 @@ function ShipmentSourceModal({
 function DeliveryStep({
   items,
   unavailableItems,
+  isClickAndCollect,
   appliedCoupons,
   selections,
   selectedStores,
+  clickAndCollectStore,
   onSelectionChange,
   onStoreChange,
+  onClickAndCollectStoreChange,
   onRemoveUnavailable,
   onBack,
   onNext,
 }: {
   items: CartItem[]
   unavailableItems: CartItem[]
+  isClickAndCollect: boolean
   appliedCoupons: string[]
   selections: string[]
   selectedStores: string[]
+  clickAndCollectStore: string
   onSelectionChange: (packageIndex: number, value: string) => void
   onStoreChange: (packageIndex: number, value: string) => void
+  onClickAndCollectStoreChange: (value: string) => void
   onRemoveUnavailable: (id: number) => void
   onBack: () => void
   onNext: () => void
@@ -1749,22 +1840,34 @@ function DeliveryStep({
   const deliverableItems = items.filter(
     (item) => !unavailableItems.some(({ id }) => id === item.id),
   )
-  const visiblePackages = packages
-    .map((item, index) => ({
-      ...item,
-      index,
-      products: deliverableItems.filter((product) =>
-        item.productIds.includes(product.id),
-      ),
-    }))
-    .filter((item) => item.products.length > 0)
+  const visiblePackages = isClickAndCollect
+    ? [
+        {
+          source: "Fra Obs-butikk",
+          index: 0,
+          products: deliverableItems,
+          options: clickAndCollectVariantOptions,
+        },
+      ].filter((item) => item.products.length > 0)
+    : packages
+        .map((item, index) => ({
+          ...item,
+          index,
+          products: deliverableItems.filter((product) =>
+            item.productIds.includes(product.id),
+          ),
+        }))
+        .filter((item) => item.products.length > 0)
 
   return (
     <>
       <h1>Leveringsalternativer</h1>
+      {isClickAndCollect && (
+        <ClickAndCollectHeading store={clickAndCollectStore} />
+      )}
       {visiblePackages.length > 1 && (
         <div className="split-notice" role="status">
-          <img src="/assets/step3-obs/48d56.svg" alt="" />
+          <img src={assetUrl("assets/step3-obs/48d56.svg")} alt="" />
           <span>Ordren din sendes som flere pakker.</span>
         </div>
       )}
@@ -1778,10 +1881,23 @@ function DeliveryStep({
             productItems={item.products}
             appliedCoupons={appliedCoupons}
             selected={selections[item.index]}
-            selectedStore={selectedStores[item.index]}
+            selectedStore={
+              isClickAndCollect && selections[item.index] === "pickup"
+                ? clickAndCollectStore
+                : selectedStores[item.index]
+            }
+            isClickAndCollect={isClickAndCollect}
+            showPackageHeading={!isClickAndCollect}
             options={item.options}
+            featuredOptionId={isClickAndCollect ? "pickup" : undefined}
             onSelect={(value) => onSelectionChange(item.index, value)}
-            onStoreSelect={(value) => onStoreChange(item.index, value)}
+            onStoreSelect={(value) => {
+              if (isClickAndCollect && selections[item.index] === "pickup") {
+                onClickAndCollectStoreChange(value)
+                return
+              }
+              onStoreChange(item.index, value)
+            }}
             onSourceClick={(source) =>
               setSourceModal(source as SourceModalType)
             }
@@ -1848,19 +1964,19 @@ function PaymentLogo({ method }: { method: string }) {
     return (
       <img
         className="payment-logo card-logos"
-        src="/assets/card-logos.svg"
+        src={assetUrl("assets/card-logos.svg")}
         alt="Visa og Mastercard"
       />
     )
   }
   if (method === "vipps" || method === "walley") {
     return (
-      <img className="payment-logo" src={`/assets/${method}-logo.svg`} alt="" />
+      <img className="payment-logo" src={assetUrl(`assets/${method}-logo.svg`)} alt="" />
     )
   }
   if (method === "coopay") {
     return (
-      <img className="payment-logo" src="/assets/coopay-logo.svg" alt="" />
+      <img className="payment-logo" src={assetUrl("assets/coopay-logo.svg")} alt="" />
     )
   }
   return (
@@ -1874,12 +1990,14 @@ function PaymentStep({
   productTotal,
   discount,
   deliveryTotal,
+  isClickAndCollect,
   onBack,
   onRestart,
 }: {
   productTotal: number
   discount: number
   deliveryTotal: number
+  isClickAndCollect: boolean
   onBack: () => void
   onRestart: () => void
 }) {
@@ -1894,7 +2012,7 @@ function PaymentStep({
     return (
       <section className="order-complete" role="status">
         <div className="order-complete-icon">
-          <img src="/assets/d64ef.svg" alt="" />
+          <img src={assetUrl("assets/d64ef.svg")} alt="" />
         </div>
         <h1>Takk for bestillingen!</h1>
         <p>
@@ -1914,33 +2032,38 @@ function PaymentStep({
         <legend className="sr-only">Velg betalingsmåte</legend>
         {paymentOptions.map((option) => {
           const selected = payment === option.id
+          const unavailable = option.unavailable && !isClickAndCollect
           return (
             <label
               key={option.id}
               className={`payment-option ${
                 selected ? "payment-option-selected" : ""
-              } ${option.unavailable ? "payment-option-disabled" : ""}`}
+              } ${unavailable ? "payment-option-disabled" : ""}`}
             >
               <input
                 type="radio"
                 name="payment"
                 value={option.id}
                 checked={selected}
-                disabled={option.unavailable}
+                disabled={unavailable}
                 onChange={() => setPayment(option.id)}
               />
               <span className="radio-mark" />
               <span className="payment-copy">
                 <span className="payment-title">
                   <strong>{option.title}</strong>
-                  {option.unavailable && (
+                  {unavailable && (
                     <span className="unavailable-tag">
-                      <img src="/assets/step3-obs/48d56.svg" alt="" />
+                      <img src={assetUrl("assets/step3-obs/48d56.svg")} alt="" />
                       Ikke tilgjengelig
                     </span>
                   )}
                 </span>
-                <small>{option.description}</small>
+                <small>
+                  {isClickAndCollect && option.unavailable
+                    ? `Betal med ${option.title}`
+                    : option.description}
+                </small>
               </span>
               <PaymentLogo method={option.id} />
             </label>
@@ -1965,7 +2088,7 @@ function PaymentStep({
             aria-controls="payment-details"
           >
             <span>{detailsOpen ? "Skjul detaljer" : "Vis detaljer"}</span>
-            <img src="/assets/step4/99c63.svg" alt="" />
+            <img src={assetUrl("assets/step4/99c63.svg")} alt="" />
           </button>
           {detailsOpen && (
             <div className="payment-details" id="payment-details">
@@ -2039,8 +2162,13 @@ const initialStep = Math.min(
 
 const showPrototypeLabel =
   new URLSearchParams(window.location.search).get("label") !== "0"
-const initialLoggedInVariant =
-  new URLSearchParams(window.location.search).get("variant") === "logged-in"
+const initialVariant = new URLSearchParams(window.location.search).get("variant")
+const initialCheckoutVariant: CheckoutVariant =
+  initialVariant === "click-and-collect" ||
+  initialVariant === "logged-in" ||
+  initialVariant === "click-and-collect-logged-in"
+    ? initialVariant
+    : "guest"
 const isPasswordProtectionEnabled = false
 
 export default function App() {
@@ -2053,13 +2181,19 @@ export default function App() {
   const previousScrollY = useRef(window.scrollY)
   const [cartItems, setCartItems] = useState<CartItem[]>(initialCartItems)
   const [deliverySelections, setDeliverySelections] = useState(
-    defaultDeliverySelections,
+    isClickAndCollectVariant(initialCheckoutVariant)
+      ? ["pickup"]
+      : defaultDeliverySelections,
   )
   const [selectedStores, setSelectedStores] = useState(defaultSelectedStores)
-  const [checkoutVariant, setCheckoutVariant] = useState(
-    initialLoggedInVariant,
+  const [clickAndCollectStore, setClickAndCollectStore] =
+    useState("Obs Haugenstua")
+  const [checkoutVariant, setCheckoutVariant] = useState<CheckoutVariant>(
+    initialCheckoutVariant,
   )
-  const [isLoggedIn, setIsLoggedIn] = useState(initialLoggedInVariant)
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    isPreLoggedInVariant(initialCheckoutVariant),
+  )
   const [appliedCoupons, setAppliedCoupons] = useState<string[]>([])
 
   useEffect(() => {
@@ -2079,12 +2213,17 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const resetCheckout = (loggedIn: boolean) => {
+  const resetCheckout = (variant: CheckoutVariant) => {
     setCartItems(initialCartItems)
-    setDeliverySelections(defaultDeliverySelections)
+    setDeliverySelections(
+      isClickAndCollectVariant(variant)
+        ? ["pickup"]
+        : defaultDeliverySelections,
+    )
     setSelectedStores(defaultSelectedStores)
-    setCheckoutVariant(loggedIn)
-    setIsLoggedIn(loggedIn)
+    setClickAndCollectStore("Obs Haugenstua")
+    setCheckoutVariant(variant)
+    setIsLoggedIn(isPreLoggedInVariant(variant))
     setAppliedCoupons([])
     setHighestVisitedStep(1)
     setCurrentStep(1)
@@ -2093,12 +2232,23 @@ export default function App() {
 
   const restart = () => resetCheckout(checkoutVariant)
 
+  const checkoutCartItems = isClickAndCollectVariant(checkoutVariant)
+    ? cartItems.filter((item) => !item.unavailableLabel)
+    : cartItems
   const availableItems = inStock(cartItems)
   const productTotal = availableItems.reduce(
     (sum, item) => sum + item.quantity * item.price,
     0,
   )
-  const deliveryTotal = packages.reduce((sum, item, index) => {
+  const deliveryPackages = isClickAndCollectVariant(checkoutVariant)
+    ? [
+        {
+          productIds: availableItems.map((item) => item.id),
+          options: clickAndCollectVariantOptions,
+        },
+      ]
+    : packages
+  const deliveryTotal = deliveryPackages.reduce((sum, item, index) => {
     const hasItems = availableItems.some((product) =>
       item.productIds.includes(product.id),
     )
@@ -2169,13 +2319,27 @@ export default function App() {
           <span>Vis variant</span>
           <select
             aria-label="Velg prototypevariant"
-            value={checkoutVariant ? "logged-in" : "guest"}
-            onChange={(event) =>
-              resetCheckout(event.target.value === "logged-in")
-            }
+            value={checkoutVariant}
+            onChange={(event) => {
+              const { value } = event.target
+              if (
+                value === "guest" ||
+                value === "logged-in" ||
+                value === "click-and-collect" ||
+                value === "click-and-collect-logged-in"
+              ) {
+                resetCheckout(value)
+              }
+            }}
           >
-            <option value="guest">Ikke logget inn</option>
-            <option value="logged-in">Allerede logget inn</option>
+            <option value="guest">Kjøp på nett (ikke logget inn)</option>
+            <option value="logged-in">Kjøp på nett (logget inn)</option>
+            <option value="click-and-collect">
+              Klikk og hent (ikke logget inn)
+            </option>
+            <option value="click-and-collect-logged-in">
+              Klikk og hent (logget inn)
+            </option>
           </select>
         </label>
       )}
@@ -2189,8 +2353,13 @@ export default function App() {
         <div className="checkout-main">
           {currentStep === 1 && (
             <CartStep
-              items={cartItems}
-              showUnavailableItems={checkoutVariant}
+              items={checkoutCartItems}
+              showUnavailableItems={isPreLoggedInVariant(checkoutVariant)}
+              clickAndCollectStore={
+                isClickAndCollectVariant(checkoutVariant)
+                  ? clickAndCollectStore
+                  : undefined
+              }
               appliedCoupons={appliedCoupons}
               onAppliedCouponsChange={setAppliedCoupons}
               onQuantityChange={(id, change) =>
@@ -2240,8 +2409,10 @@ export default function App() {
           {currentStep === 3 && (
             <DeliveryStep
               items={availableItems}
+              isClickAndCollect={isClickAndCollectVariant(checkoutVariant)}
               unavailableItems={
-                checkoutVariant
+                isPreLoggedInVariant(checkoutVariant) ||
+                isClickAndCollectVariant(checkoutVariant)
                   ? []
                   : cartItems
                       .filter((item) => item.id === guestUnavailableProductId)
@@ -2254,11 +2425,13 @@ export default function App() {
               appliedCoupons={appliedCoupons}
               selections={deliverySelections}
               selectedStores={selectedStores}
+              clickAndCollectStore={clickAndCollectStore}
               onSelectionChange={(index, value) =>
                 setDeliverySelections((current) =>
                   updateAt(current, index, value),
                 )
               }
+              onClickAndCollectStoreChange={setClickAndCollectStore}
               onStoreChange={(index, value) =>
                 setSelectedStores((current) => updateAt(current, index, value))
               }
@@ -2279,6 +2452,7 @@ export default function App() {
                 0,
               )}
               deliveryTotal={deliveryTotal}
+              isClickAndCollect={isClickAndCollectVariant(checkoutVariant)}
               onBack={() => goToStep(3)}
               onRestart={restart}
             />
