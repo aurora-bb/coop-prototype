@@ -2466,27 +2466,164 @@ html {
 .prototype-variant {
   position: fixed;
   z-index: 901;
-  top: 12px;
-  right: 176px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
+  bottom: 16px;
+  left: 16px;
+  width: 220px;
+  border: 1px solid #d4d4d4;
   border-radius: 8px;
   background: #fff;
-  padding: 8px 10px;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 16%);
   color: #1f1f1f;
   font-size: 13px;
 }
 
-.prototype-variant span {
+.prototype-variant-header {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+.prototype-variant-toggle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  color: inherit;
+  font-family: 'Coop Sans:Medium', Arial, sans-serif;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prototype-variant-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  color: #5c5c5c;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.prototype-variant-close:hover {
+  background: #f0f0f0;
+}
+
+.prototype-variant-close:focus-visible {
+  outline: 2px solid #0059b2;
+  outline-offset: -2px;
+}
+
+.prototype-variant-toggle:focus-visible {
+  outline: 2px solid #0059b2;
+  outline-offset: -2px;
+}
+
+.prototype-variant-chevron {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 160ms ease;
+}
+
+.prototype-variant-toggle[aria-expanded='true'] .prototype-variant-chevron {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.prototype-variant-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid #e5e5e5;
+  padding: 10px 12px 12px;
+}
+
+.prototype-variant-controls > label {
+  font-family: 'Coop Sans:Medium', Arial, sans-serif;
+}
+
+.prototype-scenario-heading {
+  margin: 10px 0 0;
+  font-family: 'Coop Sans:Medium', Arial, sans-serif;
+  font-size: inherit;
+}
+
+.prototype-login-setting {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prototype-warning-severity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  font-family: 'Coop Sans:Medium', Arial, sans-serif;
+}
+
+.prototype-login-label {
   white-space: nowrap;
+}
+
+.prototype-login-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex: 0 0 36px;
+  border: 0;
+  border-radius: 999px;
+  background: #858585;
+  padding: 2px;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.prototype-login-setting[aria-checked='true'] .prototype-login-toggle {
+  background: #007a33;
+}
+
+.prototype-login-toggle span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 160ms ease;
+}
+
+.prototype-login-setting[aria-checked='true'] .prototype-login-toggle span {
+  transform: translateX(16px);
+}
+
+.prototype-login-setting:focus-visible {
+  outline: 2px solid #0059b2;
+  outline-offset: 2px;
 }
 
 .prototype-variant select {
   appearance: none;
-  max-width: 190px;
+  width: 100%;
   border: 1px solid #858585;
   border-radius: 4px;
   background: #fff;
@@ -2512,12 +2649,67 @@ html {
   }
 
   .prototype-variant {
-    top: 8px;
-    right: auto;
-    left: 50%;
-    max-width: calc(100vw - 24px);
-    transform: translateX(-50%);
+    bottom: 12px;
+    left: 12px;
+    width: min(220px, calc(100vw - 24px));
   }
+}
+
+.status-message-general {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 28px;
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 17px;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.08px;
+}
+
+.status-message-general > img {
+  flex: 0 0 auto;
+}
+
+.status-message-general > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-message-general p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.status-message-general-heading {
+  font-family: 'Coop Sans:Medium', Arial, sans-serif;
+  font-size: 18px;
+}
+
+@media (max-width: 620px) {
+  .status-message-general-heading {
+    font-size: 16px;
+  }
+}
+
+.status-message-general-info {
+  border-color: #99ccff;
+  background: #dbecff;
+  color: #00264d;
+}
+
+.status-message-general-warning {
+  border-color: #ffd241;
+  background: #ffebb9;
+  color: #372901;
+}
+
+.status-message-general-critical {
+  border-color: #f98b86;
+  background: #fcccca;
+  color: #36020b;
 }
 
 /* Sold-out products, in their own section below the cart (Figma: Step

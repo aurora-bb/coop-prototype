@@ -21,12 +21,18 @@ type CheckoutVariant =
   | "logged-in"
   | "click-and-collect"
   | "click-and-collect-logged-in"
+  | "heat-pump"
+  | "heat-pump-logged-in"
 
 const isPreLoggedInVariant = (variant: CheckoutVariant) =>
-  variant === "logged-in" || variant === "click-and-collect-logged-in"
+  variant === "logged-in" ||
+  variant === "click-and-collect-logged-in" ||
+  variant === "heat-pump-logged-in"
 const isClickAndCollectVariant = (variant: CheckoutVariant) =>
   variant === "click-and-collect" ||
   variant === "click-and-collect-logged-in"
+const isHeatPumpVariant = (variant: CheckoutVariant) =>
+  variant === "heat-pump" || variant === "heat-pump-logged-in"
 
 type DeliveryOption = {
   id: string
@@ -36,6 +42,57 @@ type DeliveryOption = {
   price: number
   // Dropdown shown under the option while it's selected.
   picker?: DeliveryPicker
+}
+
+const heatPumpDeliveryOption: DeliveryOption = {
+  id: "installer",
+  title: "Leveres av montør",
+  description:
+    "Du vil bli kontaktet av butikk for å avtale levering og montering",
+  price: 0,
+}
+
+type GeneralWarningSeverity = "info" | "warning" | "critical"
+
+const generalWarningContent: Record<
+  GeneralWarningSeverity,
+  { title: string; description: string; icon: string }
+> = {
+  info: {
+    title: "Planlagt vedlikehold",
+    description:
+      "Vi vedlikeholder våre systemer i kveld mellom kl. 22:00 og 23:00. Forsinkelser kan forekomme.",
+    icon: "general-warning-info.svg",
+  },
+  warning: {
+    title: "Planlagt vedlikehold",
+    description:
+      "Vi vedlikeholder våre systemer i kveld mellom kl. 22:00 og 23:00. Forsinkelser kan forekomme.",
+    icon: "general-warning-warning.svg",
+  },
+  critical: {
+    title: "Kortbetaling midlertidig ute av drift",
+    description:
+      "Betaling med Visa og Mastercard er for øyeblikket utilgjengelig.",
+    icon: "general-warning-critical.svg",
+  },
+}
+
+function GeneralWarning({ severity }: { severity: GeneralWarningSeverity }) {
+  const content = generalWarningContent[severity]
+
+  return (
+    <div
+      className={`status-message-general status-message-general-${severity}`}
+      role={severity === "critical" ? "alert" : "status"}
+    >
+      <img src={assetUrl(`assets/${content.icon}`)} alt="" />
+      <div>
+        <p className="status-message-general-heading">{content.title}</p>
+        <p>{content.description}</p>
+      </div>
+    </div>
+  )
 }
 
 type DeliveryPicker = {
@@ -170,6 +227,13 @@ const packages = [
     options: obsStoreDeliveryOptions,
   },
 ]
+const heatPumpPackages = [
+  {
+    source: "Fra Obs-butikk",
+    productIds: [8],
+    options: [heatPumpDeliveryOption],
+  },
+]
 
 // Pre-selected option for each package.
 const defaultDeliverySelections = ["store", "postnord"]
@@ -293,6 +357,21 @@ const initialCartItems: CartItem[] = [
     brand: "BC Home",
     soldOut: true,
     unavailableLabel: unavailableProductLabel,
+  },
+]
+
+const heatPumpCartItems: CartItem[] = [
+  {
+    id: 8,
+    quantity: 1,
+    name: "Mitsubishi Kaiteki 6600 varmepumpe, ferdig montert",
+    price: 25549,
+    image: assetUrl("assets/products/mitsubishi-kaiteki-6600.jpg"),
+    url: "https://www.obsbygg.no/varme/varmepumpe/2246343?v=ObsBygg-95905",
+    sku: "95905",
+    color: "Hvit",
+    brand: "Mitsubishi Electric",
+    category: "Varmepumpe",
   },
 ]
 
@@ -653,7 +732,7 @@ function QuantityInput({
 function CartStep({
   items,
   showUnavailableItems,
-  clickAndCollectStore,
+  storeHeading,
   appliedCoupons,
   onAppliedCouponsChange,
   onQuantityChange,
@@ -663,7 +742,7 @@ function CartStep({
 }: {
   items: CartItem[]
   showUnavailableItems: boolean
-  clickAndCollectStore?: string
+  storeHeading?: { label: string; store: string }
   appliedCoupons: string[]
   onAppliedCouponsChange: (codes: string[]) => void
   onQuantityChange: (id: number, change: number) => void
@@ -852,8 +931,11 @@ function CartStep({
   return (
     <>
       <h1>Dine varer</h1>
-      {clickAndCollectStore && (
-        <ClickAndCollectHeading store={clickAndCollectStore} />
+      {storeHeading && (
+        <ClickAndCollectHeading
+          label={storeHeading.label}
+          store={storeHeading.store}
+        />
       )}
       {visibleItems.length === 0 ? (
         <p className="cart-empty">Handlekurven din er tom.</p>
@@ -1453,14 +1535,20 @@ function DeliveryProduct({
   )
 }
 
-function ClickAndCollectHeading({ store }: { store: string }) {
+function ClickAndCollectHeading({
+  label = "Klikk og hent:",
+  store,
+}: {
+  label?: string
+  store: string
+}) {
   return (
     <div className="click-and-collect-heading">
       <span className="click-and-collect-heading-icon">
         <img src={assetUrl("assets/click-and-collect-store.svg")} alt="" />
       </span>
       <p>
-        <strong>Klikk og hent:</strong> {store}
+        <strong>{label}</strong> {store}
       </p>
     </div>
   )
@@ -1513,7 +1601,8 @@ function PackageCard({
       className={`package-card ${
         packageCount === 1 ? "package-card-single" : ""
       }`}
-      aria-labelledby={`package-${packageIndex}`}
+      aria-labelledby={showPackageHeading ? `package-${packageIndex}` : undefined}
+      aria-label={showPackageHeading ? undefined : "Pakkeinnhold og levering"}
     >
       {showPackageHeading && (
         <div className="package-heading">
@@ -1809,6 +1898,7 @@ function DeliveryStep({
   items,
   unavailableItems,
   isClickAndCollect,
+  isHeatPump,
   appliedCoupons,
   selections,
   selectedStores,
@@ -1823,6 +1913,7 @@ function DeliveryStep({
   items: CartItem[]
   unavailableItems: CartItem[]
   isClickAndCollect: boolean
+  isHeatPump: boolean
   appliedCoupons: string[]
   selections: string[]
   selectedStores: string[]
@@ -1840,6 +1931,7 @@ function DeliveryStep({
   const deliverableItems = items.filter(
     (item) => !unavailableItems.some(({ id }) => id === item.id),
   )
+  const packageDefinitions = isHeatPump ? heatPumpPackages : packages
   const visiblePackages = isClickAndCollect
     ? [
         {
@@ -1849,7 +1941,7 @@ function DeliveryStep({
           options: clickAndCollectVariantOptions,
         },
       ].filter((item) => item.products.length > 0)
-    : packages
+    : packageDefinitions
         .map((item, index) => ({
           ...item,
           index,
@@ -1862,8 +1954,11 @@ function DeliveryStep({
   return (
     <>
       <h1>Leveringsalternativer</h1>
-      {isClickAndCollect && (
-        <ClickAndCollectHeading store={clickAndCollectStore} />
+      {(isClickAndCollect || isHeatPump) && (
+        <ClickAndCollectHeading
+          label={isHeatPump ? "Valgt butikk:" : undefined}
+          store={isHeatPump ? selectedStores[0] : clickAndCollectStore}
+        />
       )}
       {visiblePackages.length > 1 && (
         <div className="split-notice" role="status">
@@ -1887,7 +1982,7 @@ function DeliveryStep({
                 : selectedStores[item.index]
             }
             isClickAndCollect={isClickAndCollect}
-            showPackageHeading={!isClickAndCollect}
+            showPackageHeading={!isClickAndCollect && !isHeatPump}
             options={item.options}
             featuredOptionId={isClickAndCollect ? "pickup" : undefined}
             onSelect={(value) => onSelectionChange(item.index, value)}
@@ -1991,6 +2086,7 @@ function PaymentStep({
   discount,
   deliveryTotal,
   isClickAndCollect,
+  isHeatPump,
   onBack,
   onRestart,
 }: {
@@ -1998,6 +2094,7 @@ function PaymentStep({
   discount: number
   deliveryTotal: number
   isClickAndCollect: boolean
+  isHeatPump: boolean
   onBack: () => void
   onRestart: () => void
 }) {
@@ -2007,6 +2104,20 @@ function PaymentStep({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [completed, setCompleted] = useState(false)
   const total = productTotal - discount + deliveryTotal
+  const isPaymentOptionUnavailable = (
+    option: (typeof paymentOptions)[number],
+  ) =>
+    Boolean(
+      option.unavailable &&
+        !(
+          isClickAndCollect ||
+          (isHeatPump && option.id === "walley")
+        ),
+    )
+  const orderedPaymentOptions = [
+    ...paymentOptions.filter((option) => !isPaymentOptionUnavailable(option)),
+    ...paymentOptions.filter(isPaymentOptionUnavailable),
+  ]
 
   if (completed) {
     return (
@@ -2030,9 +2141,9 @@ function PaymentStep({
       <h1>Betalingsalternativer</h1>
       <fieldset className="payment-list">
         <legend className="sr-only">Velg betalingsmåte</legend>
-        {paymentOptions.map((option) => {
+        {orderedPaymentOptions.map((option) => {
           const selected = payment === option.id
-          const unavailable = option.unavailable && !isClickAndCollect
+          const unavailable = isPaymentOptionUnavailable(option)
           return (
             <label
               key={option.id}
@@ -2060,7 +2171,7 @@ function PaymentStep({
                   )}
                 </span>
                 <small>
-                  {isClickAndCollect && option.unavailable
+                  {option.unavailable && !unavailable
                     ? `Betal med ${option.title}`
                     : option.description}
                 </small>
@@ -2166,7 +2277,9 @@ const initialVariant = new URLSearchParams(window.location.search).get("variant"
 const initialCheckoutVariant: CheckoutVariant =
   initialVariant === "click-and-collect" ||
   initialVariant === "logged-in" ||
-  initialVariant === "click-and-collect-logged-in"
+  initialVariant === "click-and-collect-logged-in" ||
+  initialVariant === "heat-pump" ||
+  initialVariant === "heat-pump-logged-in"
     ? initialVariant
     : "guest"
 const isPasswordProtectionEnabled = false
@@ -2177,12 +2290,21 @@ export default function App() {
   const [passwordError, setPasswordError] = useState(false)
   const [currentStep, setCurrentStep] = useState(initialStep)
   const [highestVisitedStep, setHighestVisitedStep] = useState(initialStep)
-  const [isVariantSelectorHidden, setIsVariantSelectorHidden] = useState(false)
-  const previousScrollY = useRef(window.scrollY)
-  const [cartItems, setCartItems] = useState<CartItem[]>(initialCartItems)
+  const [isVariantPanelVisible, setIsVariantPanelVisible] = useState(true)
+  const [isVariantPanelOpen, setIsVariantPanelOpen] = useState(true)
+  const [isGeneralWarningEnabled, setIsGeneralWarningEnabled] = useState(false)
+  const [generalWarningSeverity, setGeneralWarningSeverity] =
+    useState<GeneralWarningSeverity>("info")
+  const [cartItems, setCartItems] = useState<CartItem[]>(
+    isHeatPumpVariant(initialCheckoutVariant)
+      ? heatPumpCartItems
+      : initialCartItems,
+  )
   const [deliverySelections, setDeliverySelections] = useState(
     isClickAndCollectVariant(initialCheckoutVariant)
       ? ["pickup"]
+      : isHeatPumpVariant(initialCheckoutVariant)
+      ? ["installer"]
       : defaultDeliverySelections,
   )
   const [selectedStores, setSelectedStores] = useState(defaultSelectedStores)
@@ -2196,17 +2318,6 @@ export default function App() {
   )
   const [appliedCoupons, setAppliedCoupons] = useState<string[]>([])
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      setIsVariantSelectorHidden(currentScrollY > previousScrollY.current)
-      previousScrollY.current = currentScrollY
-    }
-
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [])
-
   const goToStep = (step: number) => {
     setHighestVisitedStep((current) => Math.max(current, step))
     setCurrentStep(step)
@@ -2214,10 +2325,14 @@ export default function App() {
   }
 
   const resetCheckout = (variant: CheckoutVariant) => {
-    setCartItems(initialCartItems)
+    setCartItems(
+      isHeatPumpVariant(variant) ? heatPumpCartItems : initialCartItems,
+    )
     setDeliverySelections(
       isClickAndCollectVariant(variant)
         ? ["pickup"]
+        : isHeatPumpVariant(variant)
+        ? ["installer"]
         : defaultDeliverySelections,
     )
     setSelectedStores(defaultSelectedStores)
@@ -2227,7 +2342,6 @@ export default function App() {
     setAppliedCoupons([])
     setHighestVisitedStep(1)
     setCurrentStep(1)
-    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   const restart = () => resetCheckout(checkoutVariant)
@@ -2247,7 +2361,9 @@ export default function App() {
           options: clickAndCollectVariantOptions,
         },
       ]
-    : packages
+    : isHeatPumpVariant(checkoutVariant)
+      ? heatPumpPackages
+      : packages
   const deliveryTotal = deliveryPackages.reduce((sum, item, index) => {
     const hasItems = availableItems.some((product) =>
       item.productIds.includes(product.id),
@@ -2314,37 +2430,138 @@ export default function App() {
           Prototype
         </p>
       )}
-      {currentStep === 1 && !isVariantSelectorHidden && (
-        <label className="prototype-variant">
-          <span>Vis variant</span>
-          <select
-            aria-label="Velg prototypevariant"
-            value={checkoutVariant}
-            onChange={(event) => {
-              const { value } = event.target
-              if (
-                value === "guest" ||
-                value === "logged-in" ||
-                value === "click-and-collect" ||
-                value === "click-and-collect-logged-in"
-              ) {
-                resetCheckout(value)
-              }
-            }}
-          >
-            <option value="guest">Kjøp på nett (ikke logget inn)</option>
-            <option value="logged-in">Kjøp på nett (logget inn)</option>
-            <option value="click-and-collect">
-              Klikk og hent (ikke logget inn)
-            </option>
-            <option value="click-and-collect-logged-in">
-              Klikk og hent (logget inn)
-            </option>
-          </select>
-        </label>
+      {currentStep === 1 && isVariantPanelVisible && (
+        <div className="prototype-variant">
+          <div className="prototype-variant-header">
+            <button
+              className="prototype-variant-toggle"
+              type="button"
+              aria-expanded={isVariantPanelOpen}
+              aria-controls="prototype-variant-controls"
+              onClick={() => setIsVariantPanelOpen((open) => !open)}
+            >
+              <span>Prototypeinnstillinger</span>
+              <span className="prototype-variant-chevron" aria-hidden="true" />
+            </button>
+            <button
+              className="prototype-variant-close"
+              type="button"
+              aria-label="Lukk prototypeinnstillinger"
+              onClick={() => setIsVariantPanelVisible(false)}
+            >
+              ×
+            </button>
+          </div>
+          {isVariantPanelOpen && (
+            <div className="prototype-variant-controls" id="prototype-variant-controls">
+              <label htmlFor="prototype-checkout-mode">Kjøpsmåte</label>
+              <select
+                id="prototype-checkout-mode"
+                aria-label="Velg kjøpsmåte"
+                value={
+                  isHeatPumpVariant(checkoutVariant)
+                    ? "heat-pump"
+                    : isClickAndCollectVariant(checkoutVariant)
+                    ? "click-and-collect"
+                    : "online"
+                }
+                onChange={(event) => {
+                  const selectedMode = event.target.value
+                  const isPreLoggedIn = isPreLoggedInVariant(checkoutVariant)
+                  const nextVariant: CheckoutVariant =
+                    selectedMode === "click-and-collect"
+                      ? isPreLoggedIn
+                        ? "click-and-collect-logged-in"
+                        : "click-and-collect"
+                      : selectedMode === "heat-pump"
+                        ? isPreLoggedIn
+                          ? "heat-pump-logged-in"
+                          : "heat-pump"
+                        : isPreLoggedIn
+                          ? "logged-in"
+                          : "guest"
+                  resetCheckout(nextVariant)
+                }}
+              >
+                <option value="online">Kjøp på nett</option>
+                <option value="click-and-collect">Klikk og hent</option>
+                <option value="heat-pump">Bestilling (varmepumpe)</option>
+              </select>
+              <h2 className="prototype-scenario-heading">Ulike scenarioer</h2>
+              <button
+                className="prototype-login-setting"
+                type="button"
+                role="switch"
+                aria-checked={isPreLoggedInVariant(checkoutVariant)}
+                onClick={() => {
+                  const wasLoggedIn = isPreLoggedInVariant(checkoutVariant)
+                  const nextVariant: CheckoutVariant = isHeatPumpVariant(
+                    checkoutVariant,
+                  )
+                    ? wasLoggedIn
+                      ? "heat-pump"
+                      : "heat-pump-logged-in"
+                    : isClickAndCollectVariant(checkoutVariant)
+                      ? wasLoggedIn
+                        ? "click-and-collect"
+                        : "click-and-collect-logged-in"
+                      : wasLoggedIn
+                        ? "guest"
+                        : "logged-in"
+                  resetCheckout(nextVariant)
+                }}
+              >
+                <span className="prototype-login-label">Logget inn</span>
+                <span className="prototype-login-toggle" aria-hidden="true">
+                  <span />
+                </span>
+              </button>
+              <button
+                className="prototype-login-setting"
+                type="button"
+                role="switch"
+                aria-checked={isGeneralWarningEnabled}
+                onClick={() =>
+                  setIsGeneralWarningEnabled((enabled) => !enabled)
+                }
+              >
+                <span className="prototype-login-label">Generelt varsel</span>
+                <span className="prototype-login-toggle" aria-hidden="true">
+                  <span aria-hidden="true" />
+                </span>
+              </button>
+              {isGeneralWarningEnabled && (
+                <label className="prototype-warning-severity">
+                  <span>Type varsel</span>
+                  <select
+                    aria-label="Velg type varsel"
+                    value={generalWarningSeverity}
+                    onChange={(event) => {
+                      const severity = event.target.value
+                      if (
+                        severity === "info" ||
+                        severity === "warning" ||
+                        severity === "critical"
+                      ) {
+                        setGeneralWarningSeverity(severity)
+                      }
+                    }}
+                  >
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+        </div>
       )}
       <CheckoutHeader />
       <main className="checkout-content">
+        {isGeneralWarningEnabled && (
+          <GeneralWarning severity={generalWarningSeverity} />
+        )}
         <Stepper
           current={currentStep}
           highestVisited={highestVisitedStep}
@@ -2355,10 +2572,12 @@ export default function App() {
             <CartStep
               items={checkoutCartItems}
               showUnavailableItems={isPreLoggedInVariant(checkoutVariant)}
-              clickAndCollectStore={
+              storeHeading={
                 isClickAndCollectVariant(checkoutVariant)
-                  ? clickAndCollectStore
-                  : undefined
+                  ? { label: "Klikk og hent:", store: clickAndCollectStore }
+                  : isHeatPumpVariant(checkoutVariant)
+                    ? { label: "Valgt butikk:", store: selectedStores[0] }
+                    : undefined
               }
               appliedCoupons={appliedCoupons}
               onAppliedCouponsChange={setAppliedCoupons}
@@ -2410,6 +2629,7 @@ export default function App() {
             <DeliveryStep
               items={availableItems}
               isClickAndCollect={isClickAndCollectVariant(checkoutVariant)}
+              isHeatPump={isHeatPumpVariant(checkoutVariant)}
               unavailableItems={
                 isPreLoggedInVariant(checkoutVariant) ||
                 isClickAndCollectVariant(checkoutVariant)
@@ -2453,6 +2673,7 @@ export default function App() {
               )}
               deliveryTotal={deliveryTotal}
               isClickAndCollect={isClickAndCollectVariant(checkoutVariant)}
+              isHeatPump={isHeatPumpVariant(checkoutVariant)}
               onBack={() => goToStep(3)}
               onRestart={restart}
             />
