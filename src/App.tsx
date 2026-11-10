@@ -251,8 +251,12 @@ type CartItem = {
   color?: string
   brand?: string
   category?: string
-  // Regular price when the product is on sale; shown as "Førpris".
-  beforePrice?: number
+  memberDeal?: boolean
+  memberPrice?: number
+  weight?: number
+  height?: number
+  length?: number
+  width?: number
   // Sold-out items stay in the cart with an "Utsolgt" tag, but aren't
   // counted in totals, delivery or payment.
   soldOut?: boolean
@@ -264,6 +268,16 @@ type CartItem = {
 }
 
 const inStock = (items: CartItem[]) => items.filter((item) => !item.soldOut)
+const withMembershipPricing = (items: CartItem[], isLoggedIn: boolean) =>
+  items.map((item) =>
+    item.memberPrice === undefined
+      ? item
+      : {
+          ...item,
+          price: isLoggedIn ? item.memberPrice : item.price,
+          memberDeal: isLoggedIn,
+        },
+  )
 const guestUnavailableProductId = 4
 const unavailableProductLabel = "Utilgjengelig akkurat nå"
 
@@ -275,24 +289,34 @@ const initialCartItems: CartItem[] = [
     id: 1,
     quantity: 1,
     name: "Okidoki Ullio ulltrøye barn",
-    price: 149.5,
+    price: 299,
     image: assetUrl("assets/products/okidoki-ullio-ulltroye.jpg"),
     url: "https://www.obs.no/klar/barneklar/ull-barn/ulltroyer-barn/2893465?v=Obs-7025180737136",
     sku: "7025180737136",
     size: "2–3 år",
     color: "Grønn",
+    memberPrice: 149.5,
+    weight: 0.1,
+    height: 16,
+    length: 10,
+    width: 6,
     stock: 20,
   },
   {
     id: 2,
     quantity: 1,
     name: "Okidoki Ullio ullongs barn",
-    price: 149.5,
+    price: 299,
     image: assetUrl("assets/products/okidoki-ullio-ullongs.jpg"),
     url: "https://www.obs.no/klar/barneklar/ull-barn/ullongs-og-ullstrompebukser-barn/2893463?v=Obs-7025180737372",
     sku: "7025180737372",
     size: "2–3 år",
     color: "Grønn",
+    memberPrice: 149.5,
+    weight: 0.12,
+    height: 16,
+    length: 10,
+    width: 6,
     stock: 20,
   },
   {
@@ -304,6 +328,10 @@ const initialCartItems: CartItem[] = [
     url: "https://www.obs.no/leker/lego/lego-friends/2878262?v=Obs-5702017783734",
     sku: "5702017783734",
     brand: "LEGO",
+    weight: 0.3,
+    height: 4,
+    length: 26,
+    width: 19,
     stock: 10,
   },
   {
@@ -315,6 +343,10 @@ const initialCartItems: CartItem[] = [
     url: "https://www.obs.no/fest-og-hoytid/jul/julekalender/3004575?v=Obs-194735363384",
     sku: "194735363384",
     brand: "Hot Wheels",
+    weight: 0.9,
+    height: 4,
+    length: 45,
+    width: 30,
     stock: 2,
   },
   {
@@ -328,6 +360,10 @@ const initialCartItems: CartItem[] = [
     size: "6 m – 80 lys",
     color: "Varmhvit",
     category: "julelys",
+    weight: 0.18,
+    height: 17,
+    length: 10,
+    width: 7,
     stock: 15,
   },
   {
@@ -335,12 +371,15 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "Brother CS10S symaskin",
     price: 1953,
-    beforePrice: 2790,
     image: assetUrl("assets/products/brother-cs10s-symaskin.jpg"),
     url: "https://www.obs.no/elektronikk/symaskin/2088120?v=Obs-4977766808408",
     sku: "4977766808408",
     color: "Hvit",
     brand: "Brother",
+    weight: 6.32,
+    height: 22,
+    length: 46,
+    width: 37,
     soldOut: true,
   },
   {
@@ -348,7 +387,6 @@ const initialCartItems: CartItem[] = [
     quantity: 1,
     name: "BC Home Krus Lykken Pappa",
     price: 49,
-    beforePrice: 79,
     image: assetUrl("assets/products/bc-home-krus-lykken-pappa.jpg"),
     url: "https://www.obs.no/kjokkenutstyr/borddekking/krus/2810188?v=Obs-7070056142675",
     sku: "7070056142675",
@@ -813,6 +851,9 @@ function CartStep({
                   <h2>{item.name}</h2>
                   {item.size && <p>Størrelse: {item.size}</p>}
                   {item.color && <p>Farge: {item.color}</p>}
+                  {item.memberDeal && (
+                    <p className="member-price-label">Medlemspris</p>
+                  )}
                   <div aria-live="polite">
                     {line.coupon && !item.soldOut && (
                       <p className="discount-code">
@@ -824,7 +865,7 @@ function CartStep({
                 </div>
                 {item.soldOut && (
                   <span className="sold-out-tag">
-                    <img src={assetUrl("assets/9dc81.svg")} alt="" />
+                  <img src={assetUrl("assets/out-of-stock-x-circle.svg")} alt="" />
                     {item.unavailableLabel ?? "Utsolgt"}
                   </span>
                 )}
@@ -832,14 +873,14 @@ function CartStep({
                   {overStock(item) && (
                     <>
                       <span className="stock-tag">
-                        <img src={assetUrl("assets/ac43e.svg")} alt="" />
+                        <img
+                          src={assetUrl("assets/stock-warning-triangle.svg")}
+                          alt=""
+                        />
                         Ikke nok på lager
                       </span>
                       <span className="stock-badge">
-                        <span className="stock-dot" aria-hidden="true" />
-                        <span>
-                          <b>Antall tilgjengelige:</b> {item.stock} stk
-                        </span>
+                        <b>På lager:</b> {item.stock} stk
                       </span>
                     </>
                   )}
@@ -849,25 +890,21 @@ function CartStep({
                     {item.soldOut ? (
                       <strong>{formatPrice(line.full)}</strong>
                     ) : line.coupon ? (
-                      <>
-                        <strong className="discounted-price">
-                          {formatPrice(line.price)}
-                        </strong>
-                        <p>Førpris: {formatPrice(line.full)}</p>
-                      </>
+                      <strong
+                        className={
+                          item.memberDeal ? "discounted-price" : undefined
+                        }
+                      >
+                        {formatPrice(line.price)}
+                      </strong>
                     ) : (
-                      <strong>{formatPrice(line.full)}</strong>
-                    )}
-                    {item.beforePrice && !line.coupon && (
-                      <p>
-                        Førpris: {formatPrice(item.quantity * item.beforePrice)}
-                      </p>
-                    )}
-                    {item.id <= 2 && (
-                      <>
-                        <p>Førpris: {formatPrice(item.quantity * 299)}</p>
-                        <p>Ikke-medlem: {formatPrice(item.quantity * 299)}</p>
-                      </>
+                      <strong
+                        className={
+                          item.memberDeal ? "discounted-price" : undefined
+                        }
+                      >
+                        {formatPrice(line.full)}
+                      </strong>
                     )}
                   </div>
                   <div className="quantity-actions">
@@ -1498,27 +1535,41 @@ function DeliveryProduct({
               .join(", ")}
           </p>
         )}
+        {item.memberDeal && (
+          <p className="member-price-label">Medlemspris</p>
+        )}
         {item.unavailableLabel && (
           <span className="sold-out-tag delivery-unavailable-tag">
-            <img src={assetUrl("assets/9dc81.svg")} alt="" />
+            <img src={assetUrl("assets/out-of-stock-x-circle.svg")} alt="" />
             {item.unavailableLabel}
           </span>
         )}
         <p className="product-price">
           {line.coupon ? (
-            <>
-              <span className="discounted-price">
-                {formatPrice(line.price)}
-              </span>{" "}
-              <s className="original-price">{formatPrice(line.full)}</s>
-            </>
+            <span className="discounted-price">
+              {formatPrice(line.price)}
+            </span>
           ) : (
-            formatPrice(line.full)
+            item.memberDeal ? (
+              <span className="discounted-price">
+                {formatPrice(line.full)}
+              </span>
+            ) : (
+              formatPrice(line.full)
+            )
           )}
         </p>
         <div className="product-meta">
           <p>Antall: {item.quantity}</p>
-          <p>Art.nr: {item.sku}</p>
+          {item.weight !== undefined &&
+            item.height !== undefined &&
+            item.length !== undefined &&
+            item.width !== undefined && (
+              <p>
+                Vekt: {item.weight.toFixed(2)} kg, H: {item.height} cm, L:{" "}
+                {item.length} cm, B: {item.width} cm
+              </p>
+            )}
         </div>
       </div>
       {onRemove && (
@@ -2346,10 +2397,11 @@ export default function App() {
 
   const restart = () => resetCheckout(checkoutVariant)
 
+  const pricedCartItems = withMembershipPricing(cartItems, isLoggedIn)
   const checkoutCartItems = isClickAndCollectVariant(checkoutVariant)
-    ? cartItems.filter((item) => !item.unavailableLabel)
-    : cartItems
-  const availableItems = inStock(cartItems)
+    ? pricedCartItems.filter((item) => !item.unavailableLabel)
+    : pricedCartItems
+  const availableItems = inStock(pricedCartItems)
   const productTotal = availableItems.reduce(
     (sum, item) => sum + item.quantity * item.price,
     0,
