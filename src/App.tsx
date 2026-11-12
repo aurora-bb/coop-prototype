@@ -1,6 +1,7 @@
 import {
   Dispatch,
   FormEvent,
+  Fragment,
   SetStateAction,
   useEffect,
   useRef,
@@ -105,7 +106,6 @@ type DeliveryPicker = {
 const haugenstuaPostnordPicker: DeliveryPicker = {
   ariaLabel: "Velg hentested",
   choices: [
-    "Obs Haugenstua",
     "Nærbutikken Stovner",
     "Pakkeautomat Kiwi Haugenstua",
     "Pakkeautomat Smedstua",
@@ -156,7 +156,6 @@ const obsStorePicker: DeliveryPicker = {
 const stovnerPostnordPicker: DeliveryPicker = {
   ariaLabel: "Velg hentested",
   choices: [
-    "Obs Haugenstua",
     "Nærbutikken Stovner",
     "Rema 1000 Nedre Rommen",
     "Nærbutikken Grorud",
@@ -262,8 +261,8 @@ type CartItem = {
   soldOut?: boolean
   // Tag text for an unavailable item; defaults to "Utsolgt".
   unavailableLabel?: string
-  // Units available. The user can go one above it, which shows the
-  // "Ikke nok på lager" warning and blocks "Neste" until it's reduced.
+  // Units available. Quantity controls stop at this limit; manually entering
+  // a higher quantity shows the stock warning and blocks "Neste".
   stock?: number
 }
 
@@ -279,10 +278,12 @@ const withMembershipPricing = (items: CartItem[], isLoggedIn: boolean) =>
         },
   )
 const guestUnavailableProductId = 4
-const unavailableProductLabel = "Utilgjengelig akkurat nå"
+const unavailableProductLabel = "Kan ikke leveres"
 
 const overStock = (item: CartItem) =>
   item.stock !== undefined && item.quantity > item.stock
+const atStockLimit = (item: CartItem) =>
+  item.stock !== undefined && item.quantity >= item.stock
 
 const initialCartItems: CartItem[] = [
   {
@@ -458,12 +459,15 @@ const guestFieldError = (field: GuestField, value = "") => {
 }
 
 // Order and availability as in the payment sketch: Vipps and Walley can't
-// pay for orders that are split into several shipments.
+// pay for orders that are split into several shipments, and Coopay requires
+// a logged-in member.
 const paymentOptions = [
   {
     id: "coopay",
     title: "Coopay",
     description: "Betal raskt og enkelt med Coop-appen",
+    loggedOutDescription:
+      "For å betale med Coopay må du være logget inn som medlem og ha aktivert Coopay i Coop-appen",
   },
   {
     id: "card",
@@ -791,7 +795,27 @@ function CartStep({
   const [couponOpen, setCouponOpen] = useState(appliedCoupons.length > 0)
   const [coupon, setCoupon] = useState("")
   const [couponError, setCouponError] = useState("")
-  const [showUnavailableError, setShowUnavailableError] = useState(false)
+  const [unavailableInfoModalOpen, setUnavailableInfoModalOpen] = useState(false)
+  const [favoriteItems, setFavoriteItems] = useState<Record<number, boolean>>({})
+  const [favoriteLoadingItems, setFavoriteLoadingItems] = useState<
+    Record<number, boolean>
+  >({})
+  const favoriteTimers = useRef(
+    new Map<number, ReturnType<typeof setTimeout>>(),
+  )
+  const [quantityActions, setQuantityActions] = useState<
+    Record<number, -1 | 1>
+  >({})
+  const quantityActionTimers = useRef(
+    new Map<number, ReturnType<typeof setTimeout>>(),
+  )
+  const [quantityLimitTooltip, setQuantityLimitTooltip] = useState<{
+    itemId: number
+    limit: "minimum" | "maximum"
+  } | null>(null)
+  const stockLimitTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const visibleItems = items.filter(
     (item) => showUnavailableItems || !item.unavailableLabel,
   )
@@ -827,6 +851,71 @@ function CartStep({
   const couponLimitReached = appliedCoupons.length === 3
 
   const soldOutItems = visibleItems.filter((item) => item.soldOut)
+
+  useEffect(() => {
+    return () => {
+      favoriteTimers.current.forEach(clearTimeout)
+      favoriteTimers.current.clear()
+      quantityActionTimers.current.forEach(clearTimeout)
+      quantityActionTimers.current.clear()
+      if (stockLimitTooltipTimer.current) {
+        clearTimeout(stockLimitTooltipTimer.current)
+      }
+    }
+  }, [])
+
+  const handleQuantityChange = (itemId: number, change: -1 | 1) => {
+    if (quantityActions[itemId]) return
+
+    setQuantityActions((current) => ({
+      ...current,
+      [itemId]: change,
+    }))
+
+    const loadingTimer = setTimeout(() => {
+      onQuantityChange(itemId, change)
+      setQuantityActions((current) => {
+        const next = { ...current }
+        delete next[itemId]
+        return next
+      })
+      quantityActionTimers.current.delete(itemId)
+    }, 650)
+
+    quantityActionTimers.current.set(itemId, loadingTimer)
+  }
+
+  const toggleFavorite = (itemId: number) => {
+    if (favoriteLoadingItems[itemId]) return
+    setFavoriteLoadingItems((current) => ({ ...current, [itemId]: true }))
+    const timer = setTimeout(() => {
+      setFavoriteItems((current) => ({
+        ...current,
+        [itemId]: !current[itemId],
+      }))
+      setFavoriteLoadingItems((current) => {
+        const next = { ...current }
+        delete next[itemId]
+        return next
+      })
+      favoriteTimers.current.delete(itemId)
+    }, 500)
+    favoriteTimers.current.set(itemId, timer)
+  }
+
+  const showQuantityLimitTooltip = (
+    itemId: number,
+    limit: "minimum" | "maximum",
+  ) => {
+    setQuantityLimitTooltip({ itemId, limit })
+    if (stockLimitTooltipTimer.current) {
+      clearTimeout(stockLimitTooltipTimer.current)
+    }
+    stockLimitTooltipTimer.current = setTimeout(
+      () => setQuantityLimitTooltip(null),
+      2500,
+    )
+  }
 
   // One product card; used for both the regular list and the sold-out
   // section below it.
@@ -877,10 +966,7 @@ function CartStep({
                           src={assetUrl("assets/stock-warning-triangle.svg")}
                           alt=""
                         />
-                        Ikke nok på lager
-                      </span>
-                      <span className="stock-badge">
-                        <b>På lager:</b> {item.stock} stk
+                        Ikke nok på lager. Reduser antallet.
                       </span>
                     </>
                   )}
@@ -910,21 +996,43 @@ function CartStep({
                   <div className="quantity-actions">
                     {!item.soldOut && (
                     <div className="quantity-stepper">
-                      <button
-                        type="button"
-                        aria-label="Reduser antall"
-                        disabled={item.quantity === 1}
-                        onClick={() => onQuantityChange(item.id, -1)}
-                      >
-                        <img
-                          src={
-                            item.quantity === 1
-                              ? assetUrl("assets/667d5.svg")
-                              : assetUrl("assets/7efcd.svg")
+                      <span
+                        className="quantity-decrease-control"
+                        onPointerDownCapture={(event) => {
+                          if (item.quantity === 1) {
+                            event.preventDefault()
+                            showQuantityLimitTooltip(item.id, "minimum")
                           }
-                          alt=""
-                        />
-                      </button>
+                        }}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Reduser antall"
+                          aria-busy={quantityActions[item.id] === -1}
+                          aria-describedby={
+                            quantityLimitTooltip?.itemId === item.id
+                              ? `quantity-limit-tooltip-${item.id}`
+                              : undefined
+                          }
+                          disabled={
+                            item.quantity === 1 || Boolean(quantityActions[item.id])
+                          }
+                          onClick={() => handleQuantityChange(item.id, -1)}
+                        >
+                          {quantityActions[item.id] === -1 ? (
+                            <span className="quantity-spinner" aria-hidden="true" />
+                          ) : (
+                            <img
+                              src={
+                                item.quantity === 1
+                                  ? assetUrl("assets/667d5.svg")
+                                  : assetUrl("assets/7efcd.svg")
+                              }
+                              alt=""
+                            />
+                          )}
+                        </button>
+                      </span>
                       <QuantityInput
                         quantity={item.quantity}
                         label={`Antall ${item.name}`}
@@ -932,31 +1040,104 @@ function CartStep({
                           onSetQuantity(item.id, quantity)
                         }
                       />
+                      <span
+                        className="quantity-increase-control"
+                        onPointerDownCapture={(event) => {
+                          if (atStockLimit(item)) {
+                            event.preventDefault()
+                            showQuantityLimitTooltip(item.id, "maximum")
+                          }
+                        }}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Øk antall"
+                          aria-busy={quantityActions[item.id] === 1}
+                          aria-describedby={
+                            quantityLimitTooltip?.itemId === item.id
+                              ? `quantity-limit-tooltip-${item.id}`
+                              : undefined
+                          }
+                          disabled={
+                            atStockLimit(item) || Boolean(quantityActions[item.id])
+                          }
+                          onClick={() => handleQuantityChange(item.id, 1)}
+                        >
+                          {quantityActions[item.id] === 1 ? (
+                            <span className="quantity-spinner" aria-hidden="true" />
+                          ) : (
+                            <img
+                              src={
+                                atStockLimit(item)
+                                  ? assetUrl("assets/814c4.svg")
+                                  : assetUrl("assets/3e3c3.svg")
+                              }
+                              alt=""
+                            />
+                          )}
+                        </button>
+                      </span>
+                      {quantityLimitTooltip?.itemId === item.id && (
+                        <span
+                          className="stock-limit-tooltip"
+                          id={`quantity-limit-tooltip-${item.id}`}
+                          role="tooltip"
+                        >
+                          <span className="stock-limit-tooltip-content">
+                            {quantityLimitTooltip.limit === "minimum"
+                              ? "Fjern varen ved å klikke på søppelbøtta"
+                              : "Maksimalt antall nådd"}
+                          </span>
+                          <span className="stock-limit-tooltip-arrow">
+                            <img
+                              src={assetUrl("assets/stock-tooltip-arrow.svg")}
+                              alt=""
+                            />
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    )}
+                    {item.soldOut ? (
                       <button
+                        className="sold-out-favorite"
                         type="button"
-                        aria-label="Øk antall"
-                        disabled={overStock(item)}
-                        onClick={() => onQuantityChange(item.id, 1)}
+                        aria-label={
+                          favoriteItems[item.id]
+                            ? `Fjern ${item.name} fra favoritter`
+                            : `Legg ${item.name} til favoritter`
+                        }
+                        aria-pressed={Boolean(favoriteItems[item.id])}
+                        aria-busy={Boolean(favoriteLoadingItems[item.id])}
+                        disabled={Boolean(favoriteLoadingItems[item.id])}
+                        onClick={() => toggleFavorite(item.id)}
+                      >
+                        {favoriteLoadingItems[item.id] ? (
+                          <span className="quantity-spinner" aria-hidden="true" />
+                        ) : (
+                          <img
+                            src={assetUrl(
+                              favoriteItems[item.id]
+                                ? "assets/sold-out-heart-filled.svg"
+                                : "assets/sold-out-heart.svg",
+                            )}
+                            alt=""
+                          />
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        className="remove-item"
+                        type="button"
+                        aria-label={`Fjern ${item.name}`}
+                        onClick={() => onRemove(item.id)}
                       >
                         <img
-                          src={
-                            overStock(item)
-                              ? assetUrl("assets/814c4.svg")
-                              : assetUrl("assets/3e3c3.svg")
-                          }
+                          src={assetUrl("assets/product-card/28688.svg")}
                           alt=""
                         />
                       </button>
-                    </div>
                     )}
-                    <button
-                      className="remove-item"
-                      type="button"
-                      aria-label={`Fjern ${item.name}`}
-                      onClick={() => onRemove(item.id)}
-                    >
-                      <img src={assetUrl("assets/product-card/28688.svg")} alt="" />
-                    </button>
                   </div>
                 </div>
               </div>
@@ -981,12 +1162,16 @@ function CartStep({
           {availableItems.length > 0 && (
             <div className="cart-list">{availableItems.map(renderCard)}</div>
           )}
-          {/* Sold-out products get their own section at the bottom
-              (Figma: Step 1_Unavailable products section). */}
           {soldOutItems.length > 0 && (
             <section className="unavailable-section">
-              <UnavailableSummary />
-              <div className="cart-list">{soldOutItems.map(renderCard)}</div>
+              <div className="unavailable-intro">
+                <UnavailableSummary
+                  onMoreInfo={() => setUnavailableInfoModalOpen(true)}
+                />
+              </div>
+              <div className="cart-list">
+                {soldOutItems.map(renderCard)}
+              </div>
             </section>
           )}
         </>
@@ -1118,44 +1303,39 @@ function CartStep({
         <button
           className="button-next"
           type="button"
-          onClick={() => {
-            if (soldOutItems.length > 0) {
-              setShowUnavailableError(true)
-              return
-            }
-            onNext()
-          }}
-          disabled={
-            !availableItems.length ||
-            (visibleItems.some(overStock) && soldOutItems.length === 0)
-          }
-          aria-disabled={
-            soldOutItems.length > 0 ||
-            !availableItems.length ||
-            visibleItems.some(overStock)
-          }
+          onClick={onNext}
+          disabled={!availableItems.length || visibleItems.some(overStock)}
         >
           Neste
         </button>
-        {showUnavailableError && soldOutItems.length > 0 && (
-          <p className="unavailable-button-message" role="status">
-            Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå
-            videre.
-          </p>
-        )}
       </div>
+      {unavailableInfoModalOpen && (
+        <ShipmentSourceModal
+          source="Info om levering"
+          onClose={() => setUnavailableInfoModalOpen(false)}
+        />
+      )}
     </>
   )
 }
 
-function UnavailableSummary() {
+function UnavailableSummary({ onMoreInfo }: { onMoreInfo: () => void }) {
   return (
-    <div className="status-message-warning" role="status">
-      <img src={assetUrl("assets/38c35.svg")} alt="" />
-      <p>
-        Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå videre.
-      </p>
-    </div>
+    <>
+      <div className="unavailable-heading">
+        <h2>Utilgjengelige varer</h2>
+        <button
+          className="package-info-link"
+          type="button"
+          aria-haspopup="dialog"
+          aria-label="Mer info om levering"
+          onClick={onMoreInfo}
+        >
+          <img src={assetUrl("assets/delivery-info-circle.svg")} alt="" />
+          Mer info
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -1535,9 +1715,6 @@ function DeliveryProduct({
               .join(", ")}
           </p>
         )}
-        {item.memberDeal && (
-          <p className="member-price-label">Medlemspris</p>
-        )}
         {item.unavailableLabel && (
           <span className="sold-out-tag delivery-unavailable-tag">
             <img src={assetUrl("assets/out-of-stock-x-circle.svg")} alt="" />
@@ -1550,18 +1727,13 @@ function DeliveryProduct({
               {formatPrice(line.price)}
             </span>
           ) : (
-            item.memberDeal ? (
-              <span className="discounted-price">
-                {formatPrice(line.full)}
-              </span>
-            ) : (
-              formatPrice(line.full)
-            )
+            formatPrice(line.full)
           )}
         </p>
         <div className="product-meta">
           <p>Antall: {item.quantity}</p>
-          {item.weight !== undefined &&
+          {!item.unavailableLabel &&
+            item.weight !== undefined &&
             item.height !== undefined &&
             item.length !== undefined &&
             item.width !== undefined && (
@@ -1658,25 +1830,24 @@ function PackageCard({
       {showPackageHeading && (
         <div className="package-heading">
           <div className="package-title-wrap">
-            <h2 id={`package-${packageIndex}`}>Pakke {packageIndex}</h2>
-            <span>
-              ({packageIndex} av {packageCount})
-            </span>
+            <h2 id={`package-${packageIndex}`}>
+              Pakke {packageIndex} av {packageCount}
+            </h2>
+            <span className="package-source-tag">{source}</span>
           </div>
           <button
-            className="source-tag"
+            className="package-info-link"
             type="button"
             onClick={() => onSourceClick(source)}
             aria-haspopup="dialog"
           >
-            <img src={assetUrl("assets/0d418.svg")} alt="" />
-            {source}
+            <img src={assetUrl("assets/delivery-info-circle.svg")} alt="" />
+            Mer info
           </button>
         </div>
       )}
 
       <div className="section-block">
-        {!isClickAndCollect && <h3>Varer i denne pakken</h3>}
         <div className="product-list">
           {productItems.map((item, index) => (
             <DeliveryProduct
@@ -1690,7 +1861,7 @@ function PackageCard({
       </div>
 
       <fieldset className="section-block delivery-fieldset">
-        <legend>Velg levering</legend>
+        <legend>Velg levering for pakke {packageIndex}</legend>
         <div className="delivery-list">
           <div
             className="delivery-options"
@@ -1854,6 +2025,29 @@ const warehouseFaqs = [
   },
 ]
 
+const unavailableDeliveryFaqs = [
+  {
+    question: "Hvorfor er varen utilgjengelig?",
+    answer:
+      "Varen er enten utsolgt, eller så finner vi ingen leveringsmåte som passer for den til adressen din. Det kan ha flere årsaker, for eksempel varens størrelse, hvor du bor eller hvilke leveringsmetoder som er tilgjengelige akkurat nå. Dette kan være midlertidig.",
+  },
+  {
+    question: "Kan jeg hente varen i butikk i stedet?",
+    answer:
+      "Mange varer er tilgjengelige i butikk, også når de ikke kan sendes hjem til deg. Gå til produktsiden og trykk «Klikk og hent». Gå til kassen og fullfør kjøpet som en Klikk og hent-bestilling.",
+  },
+  {
+    question: "Kan jeg lagre varen til senere?",
+    answer:
+      "Ja, trykk på hjertet ved varen for å lagre den i favorittene dine. Da finner du den raskt igjen og kan kjøpe den når den er tilgjengelig.",
+  },
+  {
+    question: "Kommer varen tilbake på lager?",
+    answer:
+      "Mange varer kommer tilbake, men vi kan ikke alltid si når. Gå til produktsiden og trykk «Overvåk», så får du en e-post når varen er tilbake på nettlageret. Sesong- og kampanjevarer blir ofte ikke tatt inn igjen.",
+  },
+]
+
 const sourceModalContent = {
   "Fra sentrallager": {
     title: "Sendes fra sentrallager",
@@ -1866,6 +2060,12 @@ const sourceModalContent = {
     message:
       "Disse varene har vi ikke på sentrallageret, men de finnes i en av Obs-butikkene våre. Derfor sender vi dem direkte fra butikken, som en egen pakke. Slik gjør vi flere av varene våre tilgjengelige for deg i nettbutikken.",
     faqs: shipmentFaqs,
+  },
+  "Info om levering": {
+    title: "Utilgjengelige varer",
+    message:
+      "Varer merket med «Utsolgt» eller «Kan ikke leveres» er dessverre utilgjengelige for kjøp i nettbutikken. De blir ikke med i bestillingen, og du betaler ikke for dem. Du kan fullføre resten av kjøpet som vanlig.",
+    faqs: unavailableDeliveryFaqs,
   },
 } as const
 
@@ -1977,8 +2177,6 @@ function DeliveryStep({
   onNext: () => void
 }) {
   const [sourceModal, setSourceModal] = useState<SourceModalType | null>(null)
-  const [showUnavailableError, setShowUnavailableError] = useState(false)
-  const hasUnavailableItems = unavailableItems.length > 0
   const deliverableItems = items.filter(
     (item) => !unavailableItems.some(({ id }) => id === item.id),
   )
@@ -2005,10 +2203,35 @@ function DeliveryStep({
   return (
     <>
       <h1>Leveringsalternativer</h1>
-      {(isClickAndCollect || isHeatPump) && (
-        <ClickAndCollectHeading
-          label={isHeatPump ? "Valgt butikk:" : undefined}
-          store={isHeatPump ? selectedStores[0] : clickAndCollectStore}
+      {unavailableItems.length > 0 && (
+        <section
+          className={`unavailable-section ${
+            visiblePackages.length > 0 ? "has-delivery-divider" : ""
+          }`}
+        >
+          <div className="unavailable-intro">
+            <UnavailableSummary
+              onMoreInfo={() => setSourceModal("Info om levering")}
+            />
+          </div>
+          <div className="product-list">
+            {unavailableItems.map((item, index) => (
+              <DeliveryProduct
+                item={item}
+                appliedCoupons={appliedCoupons}
+                key={item.id}
+                last={index === unavailableItems.length - 1}
+                onRemove={onRemoveUnavailable}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+      {unavailableItems.length > 0 && visiblePackages.length > 0 && (
+        <div
+          className="package-divider unavailable-delivery-divider"
+          role="separator"
+          aria-orientation="horizontal"
         />
       )}
       {visiblePackages.length > 1 && (
@@ -2017,83 +2240,62 @@ function DeliveryStep({
           <span>Ordren din sendes som flere pakker.</span>
         </div>
       )}
+      {(isClickAndCollect || isHeatPump) && (
+        <ClickAndCollectHeading
+          label={isHeatPump ? "Valgt butikk:" : undefined}
+          store={isHeatPump ? selectedStores[0] : clickAndCollectStore}
+        />
+      )}
       <div className="package-list">
         {visiblePackages.map((item, position) => (
-          <PackageCard
-            key={item.source}
-            packageIndex={position + 1}
-            packageCount={visiblePackages.length}
-            source={item.source}
-            productItems={item.products}
-            appliedCoupons={appliedCoupons}
-            selected={selections[item.index]}
-            selectedStore={
-              isClickAndCollect && selections[item.index] === "pickup"
-                ? clickAndCollectStore
-                : selectedStores[item.index]
-            }
-            isClickAndCollect={isClickAndCollect}
-            showPackageHeading={!isClickAndCollect && !isHeatPump}
-            options={item.options}
-            featuredOptionId={isClickAndCollect ? "pickup" : undefined}
-            onSelect={(value) => onSelectionChange(item.index, value)}
-            onStoreSelect={(value) => {
-              if (isClickAndCollect && selections[item.index] === "pickup") {
-                onClickAndCollectStoreChange(value)
-                return
+          <Fragment key={item.source}>
+            <PackageCard
+              packageIndex={position + 1}
+              packageCount={visiblePackages.length}
+              source={item.source}
+              productItems={item.products}
+              appliedCoupons={appliedCoupons}
+              selected={selections[item.index]}
+              selectedStore={
+                isClickAndCollect && selections[item.index] === "pickup"
+                  ? clickAndCollectStore
+                  : selectedStores[item.index]
               }
-              onStoreChange(item.index, value)
-            }}
-            onSourceClick={(source) =>
-              setSourceModal(source as SourceModalType)
-            }
-          />
+              isClickAndCollect={isClickAndCollect}
+              showPackageHeading={!isClickAndCollect && !isHeatPump}
+              options={item.options}
+              featuredOptionId={isClickAndCollect ? "pickup" : undefined}
+              onSelect={(value) => onSelectionChange(item.index, value)}
+              onStoreSelect={(value) => {
+                if (isClickAndCollect && selections[item.index] === "pickup") {
+                  onClickAndCollectStoreChange(value)
+                  return
+                }
+                onStoreChange(item.index, value)
+              }}
+              onSourceClick={(source) =>
+                setSourceModal(source as SourceModalType)
+              }
+            />
+            {position < visiblePackages.length - 1 && (
+              <div
+                className="package-divider"
+                key={`${item.source}-divider`}
+                role="separator"
+                aria-orientation="horizontal"
+              />
+            )}
+          </Fragment>
         ))}
       </div>
-      {unavailableItems.length > 0 && (
-        <section className="unavailable-section">
-          <UnavailableSummary />
-          <div className="section-block">
-            <h2>Varer som ikke kan leveres</h2>
-            <div className="product-list">
-              {unavailableItems.map((item, index) => (
-                <DeliveryProduct
-                  item={item}
-                  appliedCoupons={appliedCoupons}
-                  key={item.id}
-                  last={index === unavailableItems.length - 1}
-                  onRemove={onRemoveUnavailable}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
       <div className="checkout-actions">
         <button className="button-back" type="button" onClick={onBack}>
           Tilbake
         </button>
-        <button
-          className="button-next"
-          type="button"
-          aria-disabled={hasUnavailableItems}
-          onClick={() => {
-            if (hasUnavailableItems) {
-              setShowUnavailableError(true)
-              return
-            }
-            onNext()
-          }}
-        >
+        <button className="button-next" type="button" onClick={onNext}>
           Neste
         </button>
       </div>
-      {showUnavailableError && hasUnavailableItems && (
-        <p className="unavailable-button-message" role="status">
-          Én eller flere varer kan ikke leveres. Fjern varen(e) for å gå
-          videre.
-        </p>
-      )}
       {sourceModal && (
         <ShipmentSourceModal
           source={sourceModal}
@@ -2138,6 +2340,7 @@ function PaymentStep({
   deliveryTotal,
   isClickAndCollect,
   isHeatPump,
+  isLoggedIn,
   onBack,
   onRestart,
 }: {
@@ -2146,18 +2349,22 @@ function PaymentStep({
   deliveryTotal: number
   isClickAndCollect: boolean
   isHeatPump: boolean
+  isLoggedIn: boolean
   onBack: () => void
   onRestart: () => void
 }) {
-  const [payment, setPayment] = useState("coopay")
+  const [selectedPayment, setPayment] = useState("coopay")
   const [accepted, setAccepted] = useState(false)
   const [showTermsError, setShowTermsError] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [completed, setCompleted] = useState(false)
   const total = productTotal - discount + deliveryTotal
+  const requiresLogin = (option: (typeof paymentOptions)[number]) =>
+    Boolean(option.loggedOutDescription && !isLoggedIn)
   const isPaymentOptionUnavailable = (
     option: (typeof paymentOptions)[number],
   ) =>
+    requiresLogin(option) ||
     Boolean(
       option.unavailable &&
         !(
@@ -2169,6 +2376,13 @@ function PaymentStep({
     ...paymentOptions.filter((option) => !isPaymentOptionUnavailable(option)),
     ...paymentOptions.filter(isPaymentOptionUnavailable),
   ]
+  // A disabled option can't stay selected, e.g. Coopay after logging out.
+  const payment = orderedPaymentOptions.some(
+    (option) =>
+      option.id === selectedPayment && !isPaymentOptionUnavailable(option),
+  )
+    ? selectedPayment
+    : orderedPaymentOptions[0].id
 
   if (completed) {
     return (
@@ -2222,9 +2436,11 @@ function PaymentStep({
                   )}
                 </span>
                 <small>
-                  {option.unavailable && !unavailable
-                    ? `Betal med ${option.title}`
-                    : option.description}
+                  {requiresLogin(option)
+                    ? option.loggedOutDescription
+                    : option.unavailable && !unavailable
+                      ? `Betal med ${option.title}`
+                      : option.description}
                 </small>
               </span>
               <PaymentLogo method={option.id} />
@@ -2375,7 +2591,10 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const resetCheckout = (variant: CheckoutVariant) => {
+  const resetCheckout = (
+    variant: CheckoutVariant,
+    { keepStep = false }: { keepStep?: boolean } = {},
+  ) => {
     setCartItems(
       isHeatPumpVariant(variant) ? heatPumpCartItems : initialCartItems,
     )
@@ -2391,6 +2610,11 @@ export default function App() {
     setCheckoutVariant(variant)
     setIsLoggedIn(isPreLoggedInVariant(variant))
     setAppliedCoupons([])
+    // Prototype settings keep the current step; restarting goes back to step 1.
+    if (keepStep) {
+      setHighestVisitedStep(currentStep)
+      return
+    }
     setHighestVisitedStep(1)
     setCurrentStep(1)
   }
@@ -2482,7 +2706,7 @@ export default function App() {
           Prototype
         </p>
       )}
-      {currentStep === 1 && isVariantPanelVisible && (
+      {isVariantPanelVisible && (
         <div className="prototype-variant">
           <div className="prototype-variant-header">
             <button
@@ -2532,13 +2756,27 @@ export default function App() {
                         : isPreLoggedIn
                           ? "logged-in"
                           : "guest"
-                  resetCheckout(nextVariant)
+                  resetCheckout(nextVariant, { keepStep: true })
                 }}
               >
                 <option value="online">Kjøp på nett</option>
                 <option value="click-and-collect">Klikk og hent</option>
                 <option value="heat-pump">Bestilling (varmepumpe)</option>
               </select>
+              <h2 className="prototype-scenario-heading">Gå til steg</h2>
+              <div className="prototype-step-shortcuts">
+                {steps.map((step, index) => (
+                  <button
+                    key={step}
+                    type="button"
+                    aria-label={`Gå til steg ${index + 1}: ${step}`}
+                    aria-current={currentStep === index + 1 ? "step" : undefined}
+                    onClick={() => goToStep(index + 1)}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
               <h2 className="prototype-scenario-heading">Ulike scenarioer</h2>
               <button
                 className="prototype-login-setting"
@@ -2560,7 +2798,7 @@ export default function App() {
                       : wasLoggedIn
                         ? "guest"
                         : "logged-in"
-                  resetCheckout(nextVariant)
+                  resetCheckout(nextVariant, { keepStep: true })
                 }}
               >
                 <span className="prototype-login-label">Logget inn</span>
@@ -2639,13 +2877,13 @@ export default function App() {
                     item.id === id
                       ? {
                           ...item,
-                          // + stops one above the stock (to show the
-                          // warning); − always goes down by one.
+                          // The stepper cannot exceed available stock; manual
+                          // quantity entry still exposes the stock warning.
                           quantity:
                             change > 0
                               ? Math.min(
                                   item.quantity + change,
-                                  (item.stock ?? Infinity) + 1,
+                                  item.stock ?? Infinity,
                                 )
                               : Math.max(1, item.quantity + change),
                         }
@@ -2726,6 +2964,7 @@ export default function App() {
               deliveryTotal={deliveryTotal}
               isClickAndCollect={isClickAndCollectVariant(checkoutVariant)}
               isHeatPump={isHeatPumpVariant(checkoutVariant)}
+              isLoggedIn={isLoggedIn}
               onBack={() => goToStep(3)}
               onRestart={restart}
             />
