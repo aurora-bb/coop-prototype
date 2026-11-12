@@ -855,6 +855,7 @@ function CartStep({
   const [coupon, setCoupon] = useState("")
   const [couponError, setCouponError] = useState("")
   const [unavailableInfoModalOpen, setUnavailableInfoModalOpen] = useState(false)
+  const [showStockError, setShowStockError] = useState(false)
   const [quantityActions, setQuantityActions] = useState<
     Record<number, -1 | 1>
   >({})
@@ -903,6 +904,7 @@ function CartStep({
   const couponLimitReached = appliedCoupons.length === 3
 
   const soldOutItems = visibleItems.filter((item) => item.soldOut)
+  const overStockCount = visibleItems.filter(overStock).length
 
   useEffect(() => {
     return () => {
@@ -1314,11 +1316,25 @@ function CartStep({
         <button
           className="button-next"
           type="button"
-          onClick={onNext}
-          disabled={!availableItems.length || visibleItems.some(overStock)}
+          onClick={() => {
+            if (overStockCount > 0) {
+              setShowStockError(true)
+              return
+            }
+            onNext()
+          }}
+          disabled={!availableItems.length}
+          aria-disabled={overStockCount > 0 || undefined}
         >
           Neste
         </button>
+        {showStockError && overStockCount > 0 && (
+          <p className="unavailable-button-message" role="status">
+            {overStockCount === 1
+              ? "Én vare i handlekurven har høyere antall enn vi har på lager."
+              : "Flere varer i handlekurven har høyere antall enn vi har på lager."}
+          </p>
+        )}
       </div>
       {unavailableInfoModalOpen && (
         <ShipmentSourceModal
