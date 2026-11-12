@@ -1309,7 +1309,7 @@ html {
 
 .product-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   margin: 0 20px;
   border-bottom: 1px solid #d4d4d4;
@@ -1331,7 +1331,8 @@ html {
   color: #5c5c5c;
 }
 
-.product-card-unavailable .remove-item {
+.product-card-unavailable .remove-item,
+.product-card-unavailable .sold-out-favorite {
   align-self: flex-end;
   flex: 0 0 46px;
   margin-left: auto;

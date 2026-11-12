@@ -730,6 +730,61 @@ function CheckoutFooter() {
 
 const maxQuantity = 99
 
+// Heart button for unavailable products. Shows a spinner while the
+// (pretend) backend saves the favorite.
+function FavoriteButton({
+  name,
+  favorite,
+  onToggle,
+}: {
+  name: string
+  favorite: boolean
+  onToggle: () => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    [],
+  )
+
+  return (
+    <button
+      className="sold-out-favorite"
+      type="button"
+      aria-label={
+        favorite ? `Fjern ${name} fra favoritter` : `Legg ${name} til favoritter`
+      }
+      aria-pressed={favorite}
+      aria-busy={loading}
+      disabled={loading}
+      onClick={() => {
+        setLoading(true)
+        timer.current = setTimeout(() => {
+          onToggle()
+          setLoading(false)
+        }, 500)
+      }}
+    >
+      {loading ? (
+        <span className="quantity-spinner" aria-hidden="true" />
+      ) : (
+        <img
+          src={assetUrl(
+            favorite
+              ? "assets/sold-out-heart-filled.svg"
+              : "assets/sold-out-heart.svg",
+          )}
+          alt=""
+        />
+      )}
+    </button>
+  )
+}
+
 // Editable number in the quantity stepper. Digits only; the value is applied
 // on Enter or when the field loses focus. Empty or 0 falls back to 1. Typing
 // more than the stock is allowed and shows the stock warning.
@@ -780,6 +835,8 @@ function CartStep({
   onQuantityChange,
   onSetQuantity,
   onRemove,
+  favoriteItems,
+  onToggleFavorite,
   onNext,
 }: {
   items: CartItem[]
@@ -790,19 +847,14 @@ function CartStep({
   onQuantityChange: (id: number, change: number) => void
   onSetQuantity: (id: number, quantity: number) => void
   onRemove: (id: number) => void
+  favoriteItems: Record<number, boolean>
+  onToggleFavorite: (id: number) => void
   onNext: () => void
 }) {
   const [couponOpen, setCouponOpen] = useState(appliedCoupons.length > 0)
   const [coupon, setCoupon] = useState("")
   const [couponError, setCouponError] = useState("")
   const [unavailableInfoModalOpen, setUnavailableInfoModalOpen] = useState(false)
-  const [favoriteItems, setFavoriteItems] = useState<Record<number, boolean>>({})
-  const [favoriteLoadingItems, setFavoriteLoadingItems] = useState<
-    Record<number, boolean>
-  >({})
-  const favoriteTimers = useRef(
-    new Map<number, ReturnType<typeof setTimeout>>(),
-  )
   const [quantityActions, setQuantityActions] = useState<
     Record<number, -1 | 1>
   >({})
@@ -854,8 +906,6 @@ function CartStep({
 
   useEffect(() => {
     return () => {
-      favoriteTimers.current.forEach(clearTimeout)
-      favoriteTimers.current.clear()
       quantityActionTimers.current.forEach(clearTimeout)
       quantityActionTimers.current.clear()
       if (stockLimitTooltipTimer.current) {
@@ -883,24 +933,6 @@ function CartStep({
     }, 650)
 
     quantityActionTimers.current.set(itemId, loadingTimer)
-  }
-
-  const toggleFavorite = (itemId: number) => {
-    if (favoriteLoadingItems[itemId]) return
-    setFavoriteLoadingItems((current) => ({ ...current, [itemId]: true }))
-    const timer = setTimeout(() => {
-      setFavoriteItems((current) => ({
-        ...current,
-        [itemId]: !current[itemId],
-      }))
-      setFavoriteLoadingItems((current) => {
-        const next = { ...current }
-        delete next[itemId]
-        return next
-      })
-      favoriteTimers.current.delete(itemId)
-    }, 500)
-    favoriteTimers.current.set(itemId, timer)
   }
 
   const showQuantityLimitTooltip = (
@@ -1099,32 +1131,11 @@ function CartStep({
                     </div>
                     )}
                     {item.soldOut ? (
-                      <button
-                        className="sold-out-favorite"
-                        type="button"
-                        aria-label={
-                          favoriteItems[item.id]
-                            ? `Fjern ${item.name} fra favoritter`
-                            : `Legg ${item.name} til favoritter`
-                        }
-                        aria-pressed={Boolean(favoriteItems[item.id])}
-                        aria-busy={Boolean(favoriteLoadingItems[item.id])}
-                        disabled={Boolean(favoriteLoadingItems[item.id])}
-                        onClick={() => toggleFavorite(item.id)}
-                      >
-                        {favoriteLoadingItems[item.id] ? (
-                          <span className="quantity-spinner" aria-hidden="true" />
-                        ) : (
-                          <img
-                            src={assetUrl(
-                              favoriteItems[item.id]
-                                ? "assets/sold-out-heart-filled.svg"
-                                : "assets/sold-out-heart.svg",
-                            )}
-                            alt=""
-                          />
-                        )}
-                      </button>
+                      <FavoriteButton
+                        name={item.name}
+                        favorite={Boolean(favoriteItems[item.id])}
+                        onToggle={() => onToggleFavorite(item.id)}
+                      />
                     ) : (
                       <button
                         className="remove-item"
@@ -1323,7 +1334,7 @@ function UnavailableSummary({ onMoreInfo }: { onMoreInfo: () => void }) {
   return (
     <>
       <div className="unavailable-heading">
-        <h2>Utilgjengelige varer</h2>
+        <h2>Varer som ikke kan leveres</h2>
         <button
           className="package-info-link"
           type="button"
@@ -1688,12 +1699,14 @@ function DeliveryProduct({
   item,
   appliedCoupons,
   last,
-  onRemove,
+  favorite,
+  onToggleFavorite,
 }: {
   item: CartItem
   appliedCoupons: string[]
   last: boolean
-  onRemove?: (id: number) => void
+  favorite?: boolean
+  onToggleFavorite?: (id: number) => void
 }) {
   const line = linePrice(item, appliedCoupons)
   return (
@@ -1744,15 +1757,12 @@ function DeliveryProduct({
             )}
         </div>
       </div>
-      {onRemove && (
-        <button
-          className="remove-item"
-          type="button"
-          aria-label={`Fjern ${item.name}`}
-          onClick={() => onRemove(item.id)}
-        >
-          <img src={assetUrl("assets/product-card/28688.svg")} alt="" />
-        </button>
+      {onToggleFavorite && (
+        <FavoriteButton
+          name={item.name}
+          favorite={Boolean(favorite)}
+          onToggle={() => onToggleFavorite(item.id)}
+        />
       )}
     </div>
   )
@@ -2062,7 +2072,7 @@ const sourceModalContent = {
     faqs: shipmentFaqs,
   },
   "Info om levering": {
-    title: "Utilgjengelige varer",
+    title: "Varer som ikke kan leveres",
     message:
       "Varer merket med «Utsolgt» eller «Kan ikke leveres» er dessverre utilgjengelige for kjøp i nettbutikken. De blir ikke med i bestillingen, og du betaler ikke for dem. Du kan fullføre resten av kjøpet som vanlig.",
     faqs: unavailableDeliveryFaqs,
@@ -2157,7 +2167,8 @@ function DeliveryStep({
   onSelectionChange,
   onStoreChange,
   onClickAndCollectStoreChange,
-  onRemoveUnavailable,
+  favoriteItems,
+  onToggleFavorite,
   onBack,
   onNext,
 }: {
@@ -2172,7 +2183,8 @@ function DeliveryStep({
   onSelectionChange: (packageIndex: number, value: string) => void
   onStoreChange: (packageIndex: number, value: string) => void
   onClickAndCollectStoreChange: (value: string) => void
-  onRemoveUnavailable: (id: number) => void
+  favoriteItems: Record<number, boolean>
+  onToggleFavorite: (id: number) => void
   onBack: () => void
   onNext: () => void
 }) {
@@ -2221,7 +2233,8 @@ function DeliveryStep({
                 appliedCoupons={appliedCoupons}
                 key={item.id}
                 last={index === unavailableItems.length - 1}
-                onRemove={onRemoveUnavailable}
+                favorite={Boolean(favoriteItems[item.id])}
+                onToggleFavorite={onToggleFavorite}
               />
             ))}
           </div>
@@ -2584,6 +2597,11 @@ export default function App() {
     isPreLoggedInVariant(initialCheckoutVariant),
   )
   const [appliedCoupons, setAppliedCoupons] = useState<string[]>([])
+  const [favoriteItems, setFavoriteItems] = useState<Record<number, boolean>>(
+    {},
+  )
+  const toggleFavorite = (id: number) =>
+    setFavoriteItems((current) => ({ ...current, [id]: !current[id] }))
 
   const goToStep = (step: number) => {
     setHighestVisitedStep((current) => Math.max(current, step))
@@ -2903,6 +2921,8 @@ export default function App() {
                   current.filter((item) => item.id !== id),
                 )
               }
+              favoriteItems={favoriteItems}
+              onToggleFavorite={toggleFavorite}
               onNext={() => goToStep(2)}
             />
           )}
@@ -2945,11 +2965,8 @@ export default function App() {
               onStoreChange={(index, value) =>
                 setSelectedStores((current) => updateAt(current, index, value))
               }
-              onRemoveUnavailable={(id) =>
-                setCartItems((current) =>
-                  current.filter((item) => item.id !== id),
-                )
-              }
+              favoriteItems={favoriteItems}
+              onToggleFavorite={toggleFavorite}
               onBack={() => goToStep(2)}
               onNext={() => goToStep(4)}
             />
