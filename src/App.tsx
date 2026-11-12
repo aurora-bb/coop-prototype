@@ -3,6 +3,7 @@ import {
   FormEvent,
   Fragment,
   SetStateAction,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -77,6 +78,33 @@ const generalWarningContent: Record<
       "Betaling med Visa og Mastercard er for øyeblikket utilgjengelig.",
     icon: "general-warning-critical.svg",
   },
+}
+
+// Success toast at the top of the page. It slides in, stays for 3 seconds
+// and slides out again; a new toast (new key) restarts the timer.
+const toastDuration = 3000
+const toastAnimation = 300
+
+function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const show = requestAnimationFrame(() => setVisible(true))
+    const hide = setTimeout(() => setVisible(false), toastDuration)
+    const done = setTimeout(onDone, toastDuration + toastAnimation)
+    return () => {
+      cancelAnimationFrame(show)
+      clearTimeout(hide)
+      clearTimeout(done)
+    }
+  }, [onDone])
+
+  return (
+    <div className={`toast ${visible ? "toast-visible" : ""}`}>
+      <img src={assetUrl("assets/toast-check-circle.svg")} alt="" />
+      <p>{message}</p>
+    </div>
+  )
 }
 
 function GeneralWarning({ severity }: { severity: GeneralWarningSeverity }) {
@@ -733,11 +761,9 @@ const maxQuantity = 99
 // Heart button for unavailable products. Shows a spinner while the
 // (pretend) backend saves the favorite.
 function FavoriteButton({
-  name,
   favorite,
   onToggle,
 }: {
-  name: string
   favorite: boolean
   onToggle: () => void
 }) {
@@ -751,13 +777,14 @@ function FavoriteButton({
     [],
   )
 
+  const label = favorite ? "Fjern fra favoritter" : "Legg til i favoritter"
+
   return (
     <button
       className="sold-out-favorite"
       type="button"
-      aria-label={
-        favorite ? `Fjern ${name} fra favoritter` : `Legg ${name} til favoritter`
-      }
+      aria-label={label}
+      title={label}
       aria-pressed={favorite}
       aria-busy={loading}
       disabled={loading}
@@ -1042,6 +1069,7 @@ function CartStep({
                         <button
                           type="button"
                           aria-label="Reduser antall"
+                          title="Reduser antall"
                           aria-busy={quantityActions[item.id] === -1}
                           aria-describedby={
                             quantityLimitTooltip?.itemId === item.id
@@ -1086,6 +1114,7 @@ function CartStep({
                         <button
                           type="button"
                           aria-label="Øk antall"
+                          title="Øk antall"
                           aria-busy={quantityActions[item.id] === 1}
                           aria-describedby={
                             quantityLimitTooltip?.itemId === item.id
@@ -1134,7 +1163,6 @@ function CartStep({
                     )}
                     {item.soldOut ? (
                       <FavoriteButton
-                        name={item.name}
                         favorite={Boolean(favoriteItems[item.id])}
                         onToggle={() => onToggleFavorite(item.id)}
                       />
@@ -1142,7 +1170,8 @@ function CartStep({
                       <button
                         className="remove-item"
                         type="button"
-                        aria-label={`Fjern ${item.name}`}
+                        aria-label="Fjern varen"
+                        title="Fjern varen"
                         onClick={() => onRemove(item.id)}
                       >
                         <img
@@ -1775,7 +1804,6 @@ function DeliveryProduct({
       </div>
       {onToggleFavorite && (
         <FavoriteButton
-          name={item.name}
           favorite={Boolean(favorite)}
           onToggle={() => onToggleFavorite(item.id)}
         />
@@ -2055,7 +2083,7 @@ const unavailableDeliveryFaqs = [
   {
     question: "Hvorfor er varen utilgjengelig?",
     answer:
-      "Varen er enten utsolgt, eller så finner vi ingen leveringsmåte som passer for den til adressen din. Det kan ha flere årsaker, for eksempel varens størrelse, hvor du bor eller hvilke leveringsmetoder som er tilgjengelige akkurat nå. Dette kan være midlertidig.",
+      "Varen kan være utsolgt, eller så finner vi ingen leveringsmåte som passer for den til adressen din. Det kan ha flere årsaker, for eksempel varens størrelse, hvor du bor eller hvilke leveringsmetoder som er tilgjengelige akkurat nå. Dette kan være midlertidig.",
   },
   {
     question: "Kan jeg hente varen i butikk i stedet?",
@@ -2090,7 +2118,7 @@ const sourceModalContent = {
   "Info om levering": {
     title: "Varer som ikke kan leveres",
     message:
-      "Varer merket med «Utsolgt» eller «Kan ikke leveres» er dessverre utilgjengelige for kjøp i nettbutikken. De blir ikke med i bestillingen, og du betaler ikke for dem. Du kan fullføre resten av kjøpet som vanlig.",
+      "Varer merket med «Utsolgt» eller «Kan ikke leveres» kan dessverre ikke kjøpes i nettbutikken akkurat nå. De blir ikke med i bestillingen, og du betaler ikke for dem. Du kan fullføre resten av kjøpet som vanlig.",
     faqs: unavailableDeliveryFaqs,
   },
 } as const
@@ -2616,8 +2644,24 @@ export default function App() {
   const [favoriteItems, setFavoriteItems] = useState<Record<number, boolean>>(
     {},
   )
-  const toggleFavorite = (id: number) =>
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(
+    null,
+  )
+  const clearToast = useCallback(() => setToast(null), [])
+  const showToast = (message: string) =>
+    setToast({ id: Date.now(), message })
+  const toggleFavorite = (id: number) => {
+    const isAdding = !favoriteItems[id]
     setFavoriteItems((current) => ({ ...current, [id]: !current[id] }))
+    const item = cartItems.find((product) => product.id === id)
+    if (item) {
+      showToast(
+        isAdding
+          ? `${item.name} ble lagt til i dine favoritter.`
+          : `${item.name} ble fjernet fra dine favoritter.`,
+      )
+    }
+  }
 
   const goToStep = (step: number) => {
     setHighestVisitedStep((current) => Math.max(current, step))
@@ -2881,6 +2925,11 @@ export default function App() {
           )}
         </div>
       )}
+      <div className="toast-region" role="status" aria-live="polite">
+        {toast && (
+          <Toast key={toast.id} message={toast.message} onDone={clearToast} />
+        )}
+      </div>
       <CheckoutHeader />
       <main className="checkout-content">
         {isGeneralWarningEnabled && (
@@ -2932,11 +2981,13 @@ export default function App() {
                   ),
                 )
               }
-              onRemove={(id) =>
+              onRemove={(id) => {
+                const item = cartItems.find((product) => product.id === id)
                 setCartItems((current) =>
-                  current.filter((item) => item.id !== id),
+                  current.filter((product) => product.id !== id),
                 )
-              }
+                if (item) showToast(`${item.name} ble slettet`)
+              }}
               favoriteItems={favoriteItems}
               onToggleFavorite={toggleFavorite}
               onNext={() => goToStep(2)}
