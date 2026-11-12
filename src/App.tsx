@@ -862,6 +862,7 @@ function CartStep({
   onQuantityChange,
   onSetQuantity,
   onRemove,
+  onRemoveItems,
   favoriteItems,
   onToggleFavorite,
   onNext,
@@ -874,6 +875,7 @@ function CartStep({
   onQuantityChange: (id: number, change: number) => void
   onSetQuantity: (id: number, quantity: number) => void
   onRemove: (id: number) => void
+  onRemoveItems: (ids: number[]) => void
   favoriteItems: Record<number, boolean>
   onToggleFavorite: (id: number) => void
   onNext: () => void
@@ -978,19 +980,12 @@ function CartStep({
     )
   }
 
-  // One product card; used for both the regular list and the sold-out
-  // section below it.
+  // One product card in the regular list. Sold-out items are shown in
+  // UnavailableSection instead.
   const renderCard = (item: CartItem) => {
             const line = linePrice(item, appliedCoupons)
             return (
-            <article
-              // Only "Utsolgt" items are toned down; "Utilgjengelig akkurat nå"
-              // items keep the regular product styling.
-              className={`cart-card ${
-                item.soldOut && !item.unavailableLabel ? "is-sold-out" : ""
-              }`}
-              key={item.id}
-            >
+            <article className="cart-card" key={item.id}>
               <img
                 className="cart-product-image"
                 src={item.image}
@@ -1005,7 +1000,7 @@ function CartStep({
                     <p className="member-price-label">Medlemspris</p>
                   )}
                   <div aria-live="polite">
-                    {line.coupon && !item.soldOut && (
+                    {line.coupon && (
                       <p className="discount-code">
                         Rabattkode {line.coupon.code}:{" "}
                         {couponLabel(line.coupon)}
@@ -1013,12 +1008,6 @@ function CartStep({
                     )}
                   </div>
                 </div>
-                {item.soldOut && (
-                  <span className="sold-out-tag">
-                  <img src={assetUrl("assets/out-of-stock-x-circle.svg")} alt="" />
-                    {item.unavailableLabel ?? "Utsolgt"}
-                  </span>
-                )}
                 <div className="stock-info" aria-live="polite">
                   {overStock(item) && (
                     <>
@@ -1034,9 +1023,7 @@ function CartStep({
                 </div>
                 <div className="cart-card-bottom">
                   <div>
-                    {item.soldOut ? (
-                      <strong>{formatPrice(line.full)}</strong>
-                    ) : line.coupon ? (
+                    {line.coupon ? (
                       <strong
                         className={
                           item.memberDeal ? "discounted-price" : undefined
@@ -1055,7 +1042,6 @@ function CartStep({
                     )}
                   </div>
                   <div className="quantity-actions">
-                    {!item.soldOut && (
                     <div className="quantity-stepper">
                       <span
                         className="quantity-decrease-control"
@@ -1160,26 +1146,18 @@ function CartStep({
                         </span>
                       )}
                     </div>
-                    )}
-                    {item.soldOut ? (
-                      <FavoriteButton
-                        favorite={Boolean(favoriteItems[item.id])}
-                        onToggle={() => onToggleFavorite(item.id)}
+                    <button
+                      className="remove-item"
+                      type="button"
+                      aria-label="Fjern varen"
+                      title="Fjern varen"
+                      onClick={() => onRemove(item.id)}
+                    >
+                      <img
+                        src={assetUrl("assets/product-card/28688.svg")}
+                        alt=""
                       />
-                    ) : (
-                      <button
-                        className="remove-item"
-                        type="button"
-                        aria-label="Fjern varen"
-                        title="Fjern varen"
-                        onClick={() => onRemove(item.id)}
-                      >
-                        <img
-                          src={assetUrl("assets/product-card/28688.svg")}
-                          alt=""
-                        />
-                      </button>
-                    )}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1201,20 +1179,21 @@ function CartStep({
         <p className="cart-empty">Handlekurven din er tom.</p>
       ) : (
         <>
+          {soldOutItems.length > 0 && (
+            <UnavailableSection
+              items={soldOutItems}
+              appliedCoupons={appliedCoupons}
+              className="cart-unavailable-section"
+              favoriteItems={favoriteItems}
+              onToggleFavorite={onToggleFavorite}
+              onMoreInfo={() => setUnavailableInfoModalOpen(true)}
+              onRemoveAll={() =>
+                onRemoveItems(soldOutItems.map((item) => item.id))
+              }
+            />
+          )}
           {availableItems.length > 0 && (
             <div className="cart-list">{availableItems.map(renderCard)}</div>
-          )}
-          {soldOutItems.length > 0 && (
-            <section className="unavailable-section">
-              <div className="unavailable-intro">
-                <UnavailableSummary
-                  onMoreInfo={() => setUnavailableInfoModalOpen(true)}
-                />
-              </div>
-              <div className="cart-list">
-                {soldOutItems.map(renderCard)}
-              </div>
-            </section>
           )}
         </>
       )}
@@ -1375,23 +1354,97 @@ function CartStep({
   )
 }
 
-function UnavailableSummary({ onMoreInfo }: { onMoreInfo: () => void }) {
+// "Varer som ikke kan leveres" panel, used in both the cart and delivery step
+// (Figma: Cannot be delivered, node 427:56939).
+function UnavailableSection({
+  items,
+  appliedCoupons,
+  className = "",
+  favoriteItems,
+  onToggleFavorite,
+  onMoreInfo,
+  onRemoveAll,
+}: {
+  items: CartItem[]
+  appliedCoupons: string[]
+  className?: string
+  favoriteItems: Record<number, boolean>
+  onToggleFavorite: (id: number) => void
+  onMoreInfo: () => void
+  onRemoveAll: () => void
+}) {
   return (
-    <>
+    <section
+      className={`unavailable-section ${className}`}
+      aria-labelledby="unavailable-heading"
+    >
       <div className="unavailable-heading">
-        <h2>Varer som ikke kan leveres</h2>
-        <button
-          className="package-info-link"
-          type="button"
-          aria-haspopup="dialog"
-          aria-label="Mer info om levering"
-          onClick={onMoreInfo}
-        >
-          <img src={assetUrl("assets/delivery-info-circle.svg")} alt="" />
-          Mer info
-        </button>
+        <h2 id="unavailable-heading">Varer som ikke kan leveres</h2>
+        <div className="unavailable-actions">
+          <button
+            className="unavailable-link"
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Mer info om levering"
+            onClick={onMoreInfo}
+          >
+            Mer info
+          </button>
+          <button
+            className="unavailable-link"
+            type="button"
+            onClick={onRemoveAll}
+          >
+            Fjern alle varer
+          </button>
+        </div>
       </div>
-    </>
+      <ul className="unavailable-list">
+        {items.map((item) => (
+          <li className="unavailable-product" key={item.id}>
+            <img
+              className="unavailable-product-image"
+              src={item.image}
+              alt={item.name}
+            />
+            <div className="unavailable-product-content">
+              <div className="unavailable-product-info">
+                <p className="unavailable-product-name">{item.name}</p>
+                {(item.size || item.color) && (
+                  <p className="unavailable-product-description">
+                    {[
+                      item.size && `Størrelse: ${item.size}`,
+                      item.color && `Farge: ${item.color}`,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                )}
+                <p className="unavailable-product-price">
+                  {formatPrice(linePrice(item, appliedCoupons).full)}
+                </p>
+              </div>
+              <p className="unavailable-product-description">
+                Antall: {item.quantity}
+              </p>
+              <div className="unavailable-product-bottom">
+                <span className="sold-out-tag">
+                  <img
+                    src={assetUrl("assets/out-of-stock-x-circle.svg")}
+                    alt=""
+                  />
+                  {item.unavailableLabel ?? "Utsolgt"}
+                </span>
+                <FavoriteButton
+                  favorite={Boolean(favoriteItems[item.id])}
+                  onToggle={() => onToggleFavorite(item.id)}
+                />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -1744,22 +1797,14 @@ function DeliveryProduct({
   item,
   appliedCoupons,
   last,
-  favorite,
-  onToggleFavorite,
 }: {
   item: CartItem
   appliedCoupons: string[]
   last: boolean
-  favorite?: boolean
-  onToggleFavorite?: (id: number) => void
 }) {
   const line = linePrice(item, appliedCoupons)
   return (
-    <div
-      className={`product-card ${
-        last ? "product-card-last" : ""
-      } ${item.unavailableLabel ? "product-card-unavailable" : ""}`}
-    >
+    <div className={`product-card ${last ? "product-card-last" : ""}`}>
       <img className="product-image" src={item.image} alt={item.name} />
       <div className="product-details">
         <p className="product-name">{item.name}</p>
@@ -1773,12 +1818,6 @@ function DeliveryProduct({
               .join(", ")}
           </p>
         )}
-        {item.unavailableLabel && (
-          <span className="sold-out-tag delivery-unavailable-tag">
-            <img src={assetUrl("assets/out-of-stock-x-circle.svg")} alt="" />
-            {item.unavailableLabel}
-          </span>
-        )}
         <p className="product-price">
           {line.coupon ? (
             <span className="discounted-price">
@@ -1790,8 +1829,7 @@ function DeliveryProduct({
         </p>
         <div className="product-meta">
           <p>Antall: {item.quantity}</p>
-          {!item.unavailableLabel &&
-            item.weight !== undefined &&
+          {item.weight !== undefined &&
             item.height !== undefined &&
             item.length !== undefined &&
             item.width !== undefined && (
@@ -1802,12 +1840,6 @@ function DeliveryProduct({
             )}
         </div>
       </div>
-      {onToggleFavorite && (
-        <FavoriteButton
-          favorite={Boolean(favorite)}
-          onToggle={() => onToggleFavorite(item.id)}
-        />
-      )}
     </div>
   )
 }
@@ -2081,7 +2113,7 @@ const warehouseFaqs = [
 
 const unavailableDeliveryFaqs = [
   {
-    question: "Hvorfor er varen utilgjengelig?",
+    question: "Hvorfor kan ikke varen leveres?",
     answer:
       "Varen kan være utsolgt, eller så finner vi ingen leveringsmåte som passer for den til adressen din. Det kan ha flere årsaker, for eksempel varens størrelse, hvor du bor eller hvilke leveringsmetoder som er tilgjengelige akkurat nå. Dette kan være midlertidig.",
   },
@@ -2213,6 +2245,7 @@ function DeliveryStep({
   onClickAndCollectStoreChange,
   favoriteItems,
   onToggleFavorite,
+  onRemoveItems,
   onBack,
   onNext,
 }: {
@@ -2229,6 +2262,7 @@ function DeliveryStep({
   onClickAndCollectStoreChange: (value: string) => void
   favoriteItems: Record<number, boolean>
   onToggleFavorite: (id: number) => void
+  onRemoveItems: (ids: number[]) => void
   onBack: () => void
   onNext: () => void
 }) {
@@ -2260,35 +2294,15 @@ function DeliveryStep({
     <>
       <h1>Leveringsalternativer</h1>
       {unavailableItems.length > 0 && (
-        <section
-          className={`unavailable-section ${
-            visiblePackages.length > 0 ? "has-delivery-divider" : ""
-          }`}
-        >
-          <div className="unavailable-intro">
-            <UnavailableSummary
-              onMoreInfo={() => setSourceModal("Info om levering")}
-            />
-          </div>
-          <div className="product-list">
-            {unavailableItems.map((item, index) => (
-              <DeliveryProduct
-                item={item}
-                appliedCoupons={appliedCoupons}
-                key={item.id}
-                last={index === unavailableItems.length - 1}
-                favorite={Boolean(favoriteItems[item.id])}
-                onToggleFavorite={onToggleFavorite}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-      {unavailableItems.length > 0 && visiblePackages.length > 0 && (
-        <div
-          className="package-divider unavailable-delivery-divider"
-          role="separator"
-          aria-orientation="horizontal"
+        <UnavailableSection
+          items={unavailableItems}
+          appliedCoupons={appliedCoupons}
+          favoriteItems={favoriteItems}
+          onToggleFavorite={onToggleFavorite}
+          onMoreInfo={() => setSourceModal("Info om levering")}
+          onRemoveAll={() =>
+            onRemoveItems(unavailableItems.map((item) => item.id))
+          }
         />
       )}
       {visiblePackages.length > 1 && (
@@ -2663,6 +2677,18 @@ export default function App() {
     }
   }
 
+  const removeItems = (ids: number[]) => {
+    const removed = cartItems.filter((item) => ids.includes(item.id))
+    setCartItems((current) =>
+      current.filter((item) => !ids.includes(item.id)),
+    )
+    if (removed.length > 0) {
+      showToast(
+        `${removed.length} ${removed.length === 1 ? "vare" : "varer"} ble fjernet`,
+      )
+    }
+  }
+
   const goToStep = (step: number) => {
     setHighestVisitedStep((current) => Math.max(current, step))
     setCurrentStep(step)
@@ -2988,6 +3014,7 @@ export default function App() {
                 )
                 if (item) showToast(`${item.name} ble slettet`)
               }}
+              onRemoveItems={removeItems}
               favoriteItems={favoriteItems}
               onToggleFavorite={toggleFavorite}
               onNext={() => goToStep(2)}
@@ -3034,6 +3061,7 @@ export default function App() {
               }
               favoriteItems={favoriteItems}
               onToggleFavorite={toggleFavorite}
+              onRemoveItems={removeItems}
               onBack={() => goToStep(2)}
               onNext={() => goToStep(4)}
             />

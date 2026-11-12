@@ -27,7 +27,7 @@ It is used for demos and user tests, not production. Keep it simple, readable an
 
 - `CartItem` fields: `stock` (going above it shows "Ikke nok på lager" and blocks "Neste"),
   `soldOut` + optional `unavailableLabel` (moves the item to the unavailable section; tag text defaults
-  to "Utsolgt"; only "Utsolgt" items get the faded image and grey title), `beforePrice` (shown as "Førpris"), `brand` / `category` (used by discount codes).
+  to "Utsolgt"; all unavailable items get a faded image and grey text), `beforePrice` (shown as "Førpris"), `brand` / `category` (used by discount codes).
 - `coupons` are keyed by lower-case code. A coupon applies to a `brand` or `category` with either
   `percentOff` or `buyXPayY`. `linePrice()` and `couponSavings()` compute prices; reuse them.
 - Sold-out items are excluded from totals, delivery and payment via `inStock()`.
