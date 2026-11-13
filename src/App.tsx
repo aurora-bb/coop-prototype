@@ -855,7 +855,6 @@ function QuantityInput({
 
 function CartStep({
   items,
-  showUnavailableItems,
   storeHeading,
   appliedCoupons,
   onAppliedCouponsChange,
@@ -868,7 +867,6 @@ function CartStep({
   onNext,
 }: {
   items: CartItem[]
-  showUnavailableItems: boolean
   storeHeading?: { label: string; store: string }
   appliedCoupons: string[]
   onAppliedCouponsChange: (codes: string[]) => void
@@ -898,9 +896,7 @@ function CartStep({
   const stockLimitTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
-  const visibleItems = items.filter(
-    (item) => showUnavailableItems || !item.unavailableLabel,
-  )
+  const visibleItems = items
   const availableItems = inStock(visibleItems)
   const productTotal = availableItems.reduce(
     (sum, item) => sum + item.quantity * item.price,
@@ -2725,10 +2721,51 @@ export default function App() {
 
   const restart = () => resetCheckout(checkoutVariant)
 
-  const pricedCartItems = withMembershipPricing(cartItems, isLoggedIn)
+  // In the guest flow, one product turns out to be undeliverable once the
+  // user logs in or reaches the delivery step. From then on it is unavailable
+  // in every step, until the user removes it.
+  const hasLateUnavailableProduct =
+    !isPreLoggedInVariant(checkoutVariant) &&
+    !isClickAndCollectVariant(checkoutVariant) &&
+    (isLoggedIn || highestVisitedStep >= 3)
+  const pricedCartItems = withMembershipPricing(
+    hasLateUnavailableProduct
+      ? cartItems.map((item) =>
+          item.id === guestUnavailableProductId
+            ? {
+                ...item,
+                soldOut: true,
+                unavailableLabel: unavailableProductLabel,
+              }
+            : item,
+        )
+      : cartItems,
+    isLoggedIn,
+  )
   const checkoutCartItems = isClickAndCollectVariant(checkoutVariant)
     ? pricedCartItems.filter((item) => !item.unavailableLabel)
     : pricedCartItems
+  // "Kan ikke leveres" items from the test data are only shown to members who
+  // were logged in from the start.
+  const cartStepItems = checkoutCartItems.filter(
+    (item) =>
+      isPreLoggedInVariant(checkoutVariant) ||
+      !item.unavailableLabel ||
+      item.id === guestUnavailableProductId,
+  )
+  // Step 3 only shows the section when the late product is still in the cart;
+  // unavailable items the user kept from step 1 are then listed with it.
+  const lateUnavailableProduct = cartStepItems.find(
+    (item) => item.id === guestUnavailableProductId && item.soldOut,
+  )
+  const deliveryUnavailableItems = lateUnavailableProduct
+    ? [
+        lateUnavailableProduct,
+        ...cartStepItems.filter(
+          (item) => item.soldOut && item !== lateUnavailableProduct,
+        ),
+      ]
+    : []
   const availableItems = inStock(pricedCartItems)
   const productTotal = availableItems.reduce(
     (sum, item) => sum + item.quantity * item.price,
@@ -2969,8 +3006,7 @@ export default function App() {
         <div className="checkout-main">
           {currentStep === 1 && (
             <CartStep
-              items={checkoutCartItems}
-              showUnavailableItems={isPreLoggedInVariant(checkoutVariant)}
+              items={cartStepItems}
               storeHeading={
                 isClickAndCollectVariant(checkoutVariant)
                   ? { label: "Klikk og hent:", store: clickAndCollectStore }
@@ -3034,18 +3070,7 @@ export default function App() {
               items={availableItems}
               isClickAndCollect={isClickAndCollectVariant(checkoutVariant)}
               isHeatPump={isHeatPumpVariant(checkoutVariant)}
-              unavailableItems={
-                isPreLoggedInVariant(checkoutVariant) ||
-                isClickAndCollectVariant(checkoutVariant)
-                  ? []
-                  : cartItems
-                      .filter((item) => item.id === guestUnavailableProductId)
-                      .map((item) => ({
-                        ...item,
-                        soldOut: true,
-                        unavailableLabel: unavailableProductLabel,
-                      }))
-              }
+              unavailableItems={deliveryUnavailableItems}
               appliedCoupons={appliedCoupons}
               selections={deliverySelections}
               selectedStores={selectedStores}
