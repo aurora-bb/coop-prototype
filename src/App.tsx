@@ -595,7 +595,22 @@ const couponSavings = (items: CartItem[], appliedCoupons: string[]) =>
     }))
     .filter(({ amount }) => amount > 0)
 
-function CheckoutHeader() {
+// Test member shown when logged in (header and step 2).
+const memberName = "Navn Navnesen"
+const memberInitials = memberName
+  .split(" ")
+  .map((part) => part[0])
+  .join("")
+
+// Checkout header (Figma: SiteHeader, Obs / Checkout, desktop node 19314:13784,
+// mobile + logged in node 19318:15006).
+function CheckoutHeader({
+  isLoggedIn,
+  onLogIn,
+}: {
+  isLoggedIn: boolean
+  onLogIn: () => void
+}) {
   // The USPs scroll away; only the logo bar is sticky (see .checkout-header).
   return (
     <>
@@ -603,17 +618,53 @@ function CheckoutHeader() {
         {[
           "Kjøpeutbytte som Coop-medlem",
           "Klikk og hent innen 2 timer",
-          "120 dager åpent kjøp",
-          "Hent i butikk - gratis og enkelt",
+          "120 dagers åpent kjøp",
+          "Hent i butikk – gratis og enkelt",
         ].map((usp) => (
           <span key={usp}>
-            <img src={assetUrl("assets/usp-check.svg")} alt="" />
+            <img src={assetUrl("assets/header/usp-check-circle.svg")} alt="" />
             {usp}
           </span>
         ))}
       </div>
       <header className="checkout-header brand-bar">
-        <img src={assetUrl("assets/step1/0d88f.svg")} alt="Obs" />
+        <div className="brand-bar-side">
+          <a className="header-button header-back" href="https://www.obs.no/">
+            <img src={assetUrl("assets/header/arrow-left.svg")} alt="" />
+            <span className="header-button-label">Fortsett å handle</span>
+          </a>
+        </div>
+        <div className="brand-logo-group">
+          <img
+            className="brand-logo"
+            src={assetUrl("assets/header/obs-logo.svg")}
+            alt="Obs"
+          />
+          {/* Tells test participants that nothing is really ordered or paid.
+              Hidden with ?label=0, e.g. for Figma captures. */}
+          {showPrototypeLabel && (
+            <span className="prototype-tag" role="note">
+              Prototype
+            </span>
+          )}
+        </div>
+        <div className="brand-bar-side brand-bar-side-right">
+          {isLoggedIn ? (
+            <span className="header-button header-account">
+              <img
+                src={assetUrl("assets/header/person-circle-filled.svg")}
+                alt=""
+              />
+              <span aria-hidden="true">{memberInitials}</span>
+              <span className="sr-only">Logget inn som {memberName}</span>
+            </span>
+          ) : (
+            <button className="header-button" type="button" onClick={onLogIn}>
+              <img src={assetUrl("assets/header/person-circle.svg")} alt="" />
+              Logg inn
+            </button>
+          )}
+        </div>
       </header>
     </>
   )
@@ -1624,7 +1675,7 @@ function DetailsStep({
                 <strong>Din registrerte adresse</strong>
                 <span>
                   <b>Adresse</b>
-                  Navn Navnesen
+                  {memberName}
                   <br />
                   Østre Akers vei 264,
                   <br />
@@ -2840,13 +2891,6 @@ export default function App() {
 
   return (
     <div className="checkout-page">
-      {/* Tells test participants that nothing is really ordered or paid.
-          Hidden with ?label=0, e.g. for Figma captures. */}
-      {showPrototypeLabel && (
-        <p className="prototype-label" role="note">
-          Prototype
-        </p>
-      )}
       {isVariantPanelVisible && (
         <div className="prototype-variant">
           <div className="prototype-variant-header">
@@ -2993,7 +3037,10 @@ export default function App() {
           <Toast key={toast.id} message={toast.message} onDone={clearToast} />
         )}
       </div>
-      <CheckoutHeader />
+      <CheckoutHeader
+        isLoggedIn={isLoggedIn}
+        onLogIn={() => setIsLoggedIn(true)}
+      />
       <main className="checkout-content">
         {isGeneralWarningEnabled && (
           <GeneralWarning severity={generalWarningSeverity} />

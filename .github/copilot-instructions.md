@@ -33,7 +33,7 @@ It is used for demos and user tests, not production. Keep it simple, readable an
 - Sold-out items are excluded from totals, delivery and payment via `inStock()`.
 - Validation for address fields lives in `guestFieldError()`; field rules (`digits`, `length`) are set
   in `guestFields`. Postcode `0000` is a special "undeliverable" case shown as a status message.
-- URL parameters: `?steg=1..4` opens a step; `?label=0` hides the "PROTOTYPE" ribbon.
+- URL parameters: `?steg=1..4` opens a step; `?label=0` hides the "Prototype" tag next to the logo.
 
 ## Conventions
 
@@ -56,6 +56,6 @@ It is used for demos and user tests, not production. Keep it simple, readable an
 ## Don't
 
 - Don't add backend calls, analytics or real payment/login logic.
-- Don't publish the project publicly or remove the "PROTOTYPE" ribbon by default; it uses real
+- Don't publish the project publicly or remove the "Prototype" tag by default; it uses real
   client branding and a licensed font.
 - Don't remove the Figma capture script from `index.html` unless asked; it is used to send screens to Figma.
