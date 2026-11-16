@@ -42,12 +42,10 @@ Example: `http://localhost:5173/?variant=logged-in`
 
 **Step 1 – Varer**
 - Change quantities with +/− or by typing in the number.
-- Stock limits: Hot Wheels 2, LEGO 10, Lysslynge 15, Okidoki 20 each. Going above shows "Ikke nok på lager" and blocks "Neste".
+- Stock limits: Hot Wheels 2, Lysslynge 15, Okidoki 20 each. Going above shows "Ikke nok på lager" and blocks "Neste".
 - Unavailable products (the sewing machine and the mug) are shown in their own section and block "Neste" until they are removed.
 - Discount codes (any casing):
-  - `LEGO40` – 40 % off LEGO
   - `HOTWHEELS20` – 20 % off Hot Wheels
-  - `JULELYS3FOR2` – 3 for 2 on light strings (needs 3 in the cart)
   - `Bahco99`, `Jotun15`, `Bosch25` – accepted, no price effect
   - Any other code shows "Rabattkoden er ikke gyldig". Max 3 codes.
 
@@ -60,6 +58,7 @@ Example: `http://localhost:5173/?variant=logged-in`
 **Step 3 – Levering**
 - The order is split into two packages, each with its own delivery options, prices and store / pickup-point dropdowns.
 - The "Fra sentrallager" / "Fra Obs-butikk" tags open a dialog with FAQs.
+- In the guest flow, the Hot Wheels julekalender becomes "Kan ikke leveres" here (or after login). Only such new errors are listed in step 3; products already unavailable in step 1 are not repeated. Going back to step 1 shows all unavailable products, unless they were removed with "Fjern alle" in step 3.
 
 **Step 4 – Betaling**
 - Vipps and Walley are unavailable for split orders.

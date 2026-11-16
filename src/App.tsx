@@ -130,22 +130,24 @@ type DeliveryPicker = {
   choices: { value: string; label: string }[]
 }
 
-// Package 2: nearby Postnord pickup points, and stores for Klikk og hent.
-const haugenstuaPostnordPicker: DeliveryPicker = {
+// Package 2: nearby Postnord pickup points.
+const package2PostnordPicker: DeliveryPicker = {
   ariaLabel: "Velg hentested",
   choices: [
-    "Nærbutikken Stovner",
-    "Pakkeautomat Kiwi Haugenstua",
-    "Pakkeautomat Smedstua",
-    "Pakkeautomat Maria Dehlisvei 45",
-    "Pakkeautomat Tante Ulrikkes V 3",
-    "Pakkeautomat Høybråtveien 1",
-    "Pakkeautomat Høybråten Stasjon",
-    "Pakkeautomat Høybråtenveien 21",
-    "Pakkeautomat Hagastubben",
+    "Extra Neuberggata",
+    "Rema 1000 Sporveisgata",
+    "Pakkeautomat Bogstadveien 44 P-hus",
+    "Rema 1000 Briskeby",
+    "Joker Parkveien Oslo",
+    "Coop Mega Bislett",
+    "Bunnpris Kirkeveien",
+    "Pakkeautomat Pilestredet 36",
+    "Pakkeautomat Colosseum 9",
+    "Jacobs Majorstuen",
   ].map((label) => ({ value: label, label })),
 }
 
+// Stores for the "Klikk og hent" prototype variant.
 const clickAndCollectPicker: DeliveryPicker = {
   ariaLabel: "Velg butikk",
   choices: ["Obs Haugenstua", "Obs Rygge"].map((label) => ({
@@ -181,6 +183,39 @@ const obsStorePicker: DeliveryPicker = {
   ].map((label) => ({ value: label, label })),
 }
 
+const warehouseClickAndCollectPicker: DeliveryPicker = {
+  ariaLabel: "Velg butikk",
+  choices: [
+    "Obs Alnabru",
+    "Obs Haugenstua",
+    "Obs Lillestrøm",
+    "Obs Vinterbro",
+    "Obs Jessheim",
+    "Obs Buskerud",
+    "Obs Slitu",
+    "Obs Rygge",
+    "Obs Fredrikstad",
+    "Obs Sandefjord",
+  ].map((label) => ({ value: label, label })),
+}
+
+const majorstuenPostnordPicker: DeliveryPicker = {
+  ariaLabel: "Velg hentested",
+  choices: [
+    "Extra Neuberggata",
+    "Pakkeautomat Bogstadveien 44 P-hus",
+    "Pakkeautomat Colosseum 9",
+    "Jacobs Majorstuen",
+    "Bunnpris Kirkeveien",
+    "Pakkeautomat Colosseum Senter",
+    "Rema 1000 Sporveisgata",
+    "Rema 1000 Briskeby",
+    "Pakkeautomat Sørkedalsveien 15",
+    "Joker Parkveien Oslo",
+  ].map((label) => ({ value: label, label })),
+}
+
+// Used by the "Klikk og hent" prototype variant.
 const stovnerPostnordPicker: DeliveryPicker = {
   ariaLabel: "Velg hentested",
   choices: [
@@ -203,8 +238,68 @@ const obsStoreDeliveryOptions: DeliveryOption[] = [
     title: "Postnord Hentested",
     description: "Normal leveringstid er 3-7 virkedager.",
     extra: "Du vil motta en melding fra Postnord når pakken er klar for henting.",
-    price: 89.1,
-    picker: haugenstuaPostnordPicker,
+    price: 76.95,
+    picker: package2PostnordPicker,
+  },
+  {
+    id: "home",
+    title: "Hjemlevering",
+    description: "Innen 2-7 virkedager",
+    extra:
+      "Leveres til gateplan. Du vil motta en melding fra Postnord når pakken er klar for levering.",
+    price: 97.2,
+  },
+]
+
+// Package 1 is sent from the central warehouse.
+const sendToObsStoreOption: DeliveryOption = {
+  id: "store",
+  title: "Sendt til Obs Butikk",
+  description: "Normalt kan du hente varene etter 2-7 virkedager.",
+  extra: "Du får SMS når varene er klare for henting.",
+  price: 0,
+  picker: obsStorePicker,
+}
+
+const warehouseDeliveryOptions: DeliveryOption[] = [
+  sendToObsStoreOption,
+  {
+    id: "pickup",
+    title: "Klikk og hent",
+    description:
+      "Normalt er varene klare for henting innen 2 timer innenfor butikkens åpningstid.",
+    extra:
+      "Du får SMS når varene er klare for henting. Velg butikk fra utvalget under",
+    price: 0,
+    picker: warehouseClickAndCollectPicker,
+  },
+  {
+    id: "postnord",
+    title: "Postnord Hentested",
+    description: "Normal leveringstid er 3-7 virkedager.",
+    extra: "Du vil motta en melding fra Postnord når pakken er klar for henting.",
+    price: 79,
+    picker: majorstuenPostnordPicker,
+  },
+  {
+    id: "home",
+    title: "Hjemlevering",
+    description: "Normal leveringstid er 3-7 virkedager.",
+    extra:
+      "Leveres til gateplan. Du vil motta en melding fra Postnord når pakken er klar for levering.",
+    price: 135,
+  },
+]
+const clickAndCollectVariantOptions = [
+  clickAndCollectDeliveryOption,
+  sendToObsStoreOption,
+  {
+    id: "postnord",
+    title: "Postnord Hentested",
+    description: "Normal leveringstid er 3-7 virkedager.",
+    extra: "Du vil motta en melding fra Postnord når pakken er klar for henting.",
+    price: 149,
+    picker: stovnerPostnordPicker,
   },
   {
     id: "home",
@@ -214,33 +309,6 @@ const obsStoreDeliveryOptions: DeliveryOption[] = [
       "Leveres til gateplan. Du vil motta en melding fra Postnord når pakken er klar for levering.",
     price: 122.85,
   },
-  clickAndCollectDeliveryOption,
-]
-
-// Package 1 is sent from the central warehouse.
-const warehouseDeliveryOptions: DeliveryOption[] = [
-  {
-    id: "store",
-    title: "Sendt til Obs Butikk",
-    description: "Normalt kan du hente varene etter 2-7 virkedager.",
-    extra: "Du får SMS når varene er klare for henting.",
-    price: 0,
-    picker: obsStorePicker,
-  },
-  {
-    id: "postnord",
-    title: "Postnord Hentested",
-    description: "Normal leveringstid er 3-7 virkedager.",
-    extra: "Du vil motta en melding fra Postnord når pakken er klar for henting.",
-    price: 149,
-    picker: stovnerPostnordPicker,
-  },
-]
-const clickAndCollectVariantOptions = [
-  clickAndCollectDeliveryOption,
-  warehouseDeliveryOptions[0],
-  warehouseDeliveryOptions[1],
-  obsStoreDeliveryOptions[1],
 ]
 const packages = [
   {
@@ -347,21 +415,6 @@ const initialCartItems: CartItem[] = [
     length: 10,
     width: 6,
     stock: 20,
-  },
-  {
-    id: 3,
-    quantity: 1,
-    name: "LEGO® Friends Isbilen i Heartlake City 42644",
-    price: 279,
-    image: assetUrl("assets/products/lego-friends-isbil.jpg"),
-    url: "https://www.obs.no/leker/lego/lego-friends/2878262?v=Obs-5702017783734",
-    sku: "5702017783734",
-    brand: "LEGO",
-    weight: 0.3,
-    height: 4,
-    length: 26,
-    width: 19,
-    stock: 10,
   },
   {
     id: 4,
@@ -540,9 +593,7 @@ const coupons: Record<string, Coupon> = {
   bahco99: { code: "Bahco99" },
   jotun15: { code: "Jotun15" },
   bosch25: { code: "Bosch25" },
-  lego40: { code: "LEGO40", brand: "LEGO", percentOff: 40 },
   hotwheels20: { code: "HOTWHEELS20", brand: "Hot Wheels", percentOff: 20 },
-  julelys3for2: { code: "JULELYS3FOR2", category: "julelys", buyXPayY: [3, 2] },
 }
 
 const couponLabel = (coupon: Coupon) =>
@@ -596,7 +647,7 @@ const couponSavings = (items: CartItem[], appliedCoupons: string[]) =>
     .filter(({ amount }) => amount > 0)
 
 // Test member shown when logged in (header and step 2).
-const memberName = "Navn Navnesen"
+const memberName = "Kari Nordmann"
 const memberInitials = memberName
   .split(" ")
   .map((part) => part[0])
@@ -1216,6 +1267,7 @@ function CartStep({
   return (
     <>
       <h1>Dine varer</h1>
+      <UnavailableInfoMessage />
       {storeHeading && (
         <ClickAndCollectHeading
           label={storeHeading.label}
@@ -1226,6 +1278,9 @@ function CartStep({
         <p className="cart-empty">Handlekurven din er tom.</p>
       ) : (
         <>
+          {availableItems.length > 0 && (
+            <div className="cart-list">{availableItems.map(renderCard)}</div>
+          )}
           {soldOutItems.length > 0 && (
             <UnavailableSection
               items={soldOutItems}
@@ -1238,9 +1293,6 @@ function CartStep({
                 onRemoveItems(soldOutItems.map((item) => item.id))
               }
             />
-          )}
-          {availableItems.length > 0 && (
-            <div className="cart-list">{availableItems.map(renderCard)}</div>
           )}
         </>
       )}
@@ -1401,6 +1453,17 @@ function CartStep({
   )
 }
 
+// Shown at the top of step 1 and 3 when the cart has unavailable products.
+// Styled like the "Ordren din sendes som flere pakker." notice.
+function UnavailableInfoMessage() {
+  return (
+    <div className="split-notice unavailable-info-message" role="status">
+      <img src={assetUrl("assets/general-warning-info.svg")} alt="" />
+      <span>Noen av varene i handlekurven din kan ikke leveres.</span>
+    </div>
+  )
+}
+
 // "Varer som ikke kan leveres" panel, used in both the cart and delivery step
 // (Figma: Cannot be delivered, node 427:56939).
 function UnavailableSection({
@@ -1435,14 +1498,17 @@ function UnavailableSection({
             aria-label="Mer info om levering"
             onClick={onMoreInfo}
           >
+            <img src={assetUrl("assets/unavailable-more-info.svg")} alt="" />
             Mer info
           </button>
           <button
             className="unavailable-link"
             type="button"
+            aria-label="Fjern alle varer som ikke kan leveres"
             onClick={onRemoveAll}
           >
-            Fjern alle varer
+            <img src={assetUrl("assets/unavailable-remove-all.svg")} alt="" />
+            Fjern alle
           </button>
         </div>
       </div>
@@ -1677,9 +1743,9 @@ function DetailsStep({
                   <b>Adresse</b>
                   {memberName}
                   <br />
-                  Østre Akers vei 264,
+                  Bogstadveien 10
                   <br />
-                  0977 Oslo
+                  0355 Oslo
                 </span>
                 <span>
                   <b>E-post</b>
@@ -1974,7 +2040,7 @@ function PackageCard({
             onClick={() => onSourceClick(source)}
             aria-haspopup="dialog"
           >
-            <img src={assetUrl("assets/delivery-info-circle.svg")} alt="" />
+            <img src={assetUrl("assets/unavailable-more-info.svg")} alt="" />
             Mer info
           </button>
         </div>
@@ -2340,18 +2406,7 @@ function DeliveryStep({
   return (
     <>
       <h1>Leveringsalternativer</h1>
-      {unavailableItems.length > 0 && (
-        <UnavailableSection
-          items={unavailableItems}
-          appliedCoupons={appliedCoupons}
-          favoriteItems={favoriteItems}
-          onToggleFavorite={onToggleFavorite}
-          onMoreInfo={() => setSourceModal("Info om levering")}
-          onRemoveAll={() =>
-            onRemoveItems(unavailableItems.map((item) => item.id))
-          }
-        />
-      )}
+      {unavailableItems.length > 0 && <UnavailableInfoMessage />}
       {visiblePackages.length > 1 && (
         <div className="split-notice" role="status">
           <img src={assetUrl("assets/step3-obs/48d56.svg")} alt="" />
@@ -2406,6 +2461,19 @@ function DeliveryStep({
           </Fragment>
         ))}
       </div>
+      {unavailableItems.length > 0 && (
+        <UnavailableSection
+          items={unavailableItems}
+          appliedCoupons={appliedCoupons}
+          className="delivery-unavailable-section"
+          favoriteItems={favoriteItems}
+          onToggleFavorite={onToggleFavorite}
+          onMoreInfo={() => setSourceModal("Info om levering")}
+          onRemoveAll={() =>
+            onRemoveItems(unavailableItems.map((item) => item.id))
+          }
+        />
+      )}
       <div className="checkout-actions">
         <button className="button-back" type="button" onClick={onBack}>
           Tilbake
@@ -2804,19 +2872,14 @@ export default function App() {
       !item.unavailableLabel ||
       item.id === guestUnavailableProductId,
   )
-  // Step 3 only shows the section when the late product is still in the cart;
-  // unavailable items the user kept from step 1 are then listed with it.
-  const lateUnavailableProduct = cartStepItems.find(
-    (item) => item.id === guestUnavailableProductId && item.soldOut,
+  // Step 3 only lists products that became unavailable after step 1; items
+  // that were already unavailable in the test data are only shown in step 1.
+  // Step 1 lists all of them until the user removes them.
+  const deliveryUnavailableItems = cartStepItems.filter(
+    (item) =>
+      item.soldOut &&
+      !cartItems.some(({ id, soldOut }) => id === item.id && soldOut),
   )
-  const deliveryUnavailableItems = lateUnavailableProduct
-    ? [
-        lateUnavailableProduct,
-        ...cartStepItems.filter(
-          (item) => item.soldOut && item !== lateUnavailableProduct,
-        ),
-      ]
-    : []
   const availableItems = inStock(pricedCartItems)
   const productTotal = availableItems.reduce(
     (sum, item) => sum + item.quantity * item.price,
