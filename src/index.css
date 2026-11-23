@@ -489,11 +489,6 @@ button.header-button:hover {
   gap: 16px;
 }
 
-/* Same gap as between the cart cards. */
-.unavailable-info-message {
-  margin-bottom: 16px;
-}
-
 .cart-card {
   display: flex;
   align-items: flex-start;
@@ -1284,18 +1279,22 @@ button.header-button:hover {
   padding: 0;
 }
 
+/* When space runs out, the link moves to its own line below the title + tag. */
 .package-heading {
   display: flex;
+  flex-wrap: wrap;
   min-height: 28px;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
 }
 
 .package-title-wrap {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
 }
 
 .package-title-wrap h2 {
@@ -2309,8 +2308,7 @@ button.header-button:hover {
   }
 
   .package-title-wrap {
-    flex-wrap: wrap;
-    gap: 0 6px;
+    gap: 6px;
   }
 
   .package-info-link {
@@ -2481,6 +2479,23 @@ button.header-button:hover {
 .stock-tag img {
   width: 16px;
   height: 16px;
+}
+
+/* "Kan ikke legge til flere" after clicking "+" on the stock limit. */
+.stock-tag-info {
+  background: #dbecff;
+  color: #00264d;
+}
+
+.stock-max {
+  color: #5c5c5c;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.stock-max strong {
+  font-family: 'Coop Sans:Medium', Arial, sans-serif;
+  font-weight: 500;
 }
 
 @media (max-width: 620px) {
@@ -2877,18 +2892,10 @@ button.header-button:hover {
   padding: 20px;
 }
 
-/* Same spacing as between the cart cards. */
-.cart-unavailable-section {
-  margin-bottom: 16px;
-}
-
-.cart-list + .cart-unavailable-section {
-  margin-top: 16px;
-}
-
-/* Below the packages in step 3, with the same gap as between packages. */
+/* At the top of step 1 and 3, with the same gap as between the cart cards. */
+.cart-unavailable-section,
 .delivery-unavailable-section {
-  margin-top: 36px;
+  margin-bottom: 16px;
 }
 
 .unavailable-heading {

@@ -42,7 +42,7 @@ Example: `http://localhost:5173/?variant=logged-in`
 
 **Step 1 – Varer**
 - Change quantities with +/− or by typing in the number.
-- Stock limits: Hot Wheels 2, Lysslynge 15, Okidoki 20 each. Going above shows "Ikke nok på lager" and blocks "Neste".
+- Stock limits: Hot Wheels 2, Lysslynge 15, Okidoki 20 each. "+" is never disabled: clicking it on the limit shows "Kan ikke legge til flere" with the available quantity. Typing a higher number shows "Ikke nok på lager. Reduser antallet." with the available quantity, and "Neste" then shows an error instead of continuing.
 - Unavailable products (the sewing machine and the mug) are shown in their own section and block "Neste" until they are removed.
 - Discount codes (any casing):
   - `HOTWHEELS20` – 20 % off Hot Wheels

@@ -991,10 +991,12 @@ function CartStep({
   const quantityActionTimers = useRef(
     new Map<number, ReturnType<typeof setTimeout>>(),
   )
-  const [quantityLimitTooltip, setQuantityLimitTooltip] = useState<{
-    itemId: number
-    limit: "minimum" | "maximum"
-  } | null>(null)
+  const [quantityLimitTooltip, setQuantityLimitTooltip] = useState<
+    number | null
+  >(null)
+  // Items where the user clicked "+" on the stock limit; shows the
+  // "Kan ikke legge til flere" tag until the quantity changes.
+  const [maxQuantityNotices, setMaxQuantityNotices] = useState<number[]>([])
   const stockLimitTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
@@ -1043,8 +1045,12 @@ function CartStep({
     }
   }, [])
 
+  const hideMaxQuantityNotice = (itemId: number) =>
+    setMaxQuantityNotices((current) => current.filter((id) => id !== itemId))
+
   const handleQuantityChange = (itemId: number, change: -1 | 1) => {
     if (quantityActions[itemId]) return
+    hideMaxQuantityNotice(itemId)
 
     setQuantityActions((current) => ({
       ...current,
@@ -1064,11 +1070,18 @@ function CartStep({
     quantityActionTimers.current.set(itemId, loadingTimer)
   }
 
-  const showQuantityLimitTooltip = (
-    itemId: number,
-    limit: "minimum" | "maximum",
-  ) => {
-    setQuantityLimitTooltip({ itemId, limit })
+  const handleIncrease = (item: CartItem) => {
+    if (atStockLimit(item)) {
+      if (!overStock(item) && !maxQuantityNotices.includes(item.id)) {
+        setMaxQuantityNotices((current) => [...current, item.id])
+      }
+      return
+    }
+    handleQuantityChange(item.id, 1)
+  }
+
+  const showQuantityLimitTooltip = (itemId: number) => {
+    setQuantityLimitTooltip(itemId)
     if (stockLimitTooltipTimer.current) {
       clearTimeout(stockLimitTooltipTimer.current)
     }
@@ -1107,16 +1120,33 @@ function CartStep({
                   </div>
                 </div>
                 <div className="stock-info" aria-live="polite">
-                  {overStock(item) && (
-                    <>
-                      <span className="stock-tag">
+                  {overStock(item) ? (
+                    <span className="stock-tag">
+                      <img
+                        src={assetUrl("assets/stock-warning-triangle.svg")}
+                        alt=""
+                      />
+                      Ikke nok på lager. Reduser antallet.
+                    </span>
+                  ) : (
+                    maxQuantityNotices.includes(item.id) &&
+                    atStockLimit(item) && (
+                      <span className="stock-tag stock-tag-info">
                         <img
-                          src={assetUrl("assets/stock-warning-triangle.svg")}
+                          src={assetUrl("assets/delivery-info-circle.svg")}
                           alt=""
                         />
-                        Ikke nok på lager. Reduser antallet.
+                        Kan ikke legge til flere
                       </span>
-                    </>
+                    )
+                  )}
+                  {(overStock(item) ||
+                    (maxQuantityNotices.includes(item.id) &&
+                      atStockLimit(item))) && (
+                    <p className="stock-max">
+                      <strong>Antall tilgjengelige:</strong> {item.stock}{" "}
+                      stk
+                    </p>
                   )}
                 </div>
                 <div className="cart-card-bottom">
@@ -1146,7 +1176,7 @@ function CartStep({
                         onPointerDownCapture={(event) => {
                           if (item.quantity === 1) {
                             event.preventDefault()
-                            showQuantityLimitTooltip(item.id, "minimum")
+                            showQuantityLimitTooltip(item.id)
                           }
                         }}
                       >
@@ -1156,7 +1186,7 @@ function CartStep({
                           title="Reduser antall"
                           aria-busy={quantityActions[item.id] === -1}
                           aria-describedby={
-                            quantityLimitTooltip?.itemId === item.id
+                            quantityLimitTooltip === item.id
                               ? `quantity-limit-tooltip-${item.id}`
                               : undefined
                           }
@@ -1182,58 +1212,34 @@ function CartStep({
                       <QuantityInput
                         quantity={item.quantity}
                         label={`Antall ${item.name}`}
-                        onCommit={(quantity) =>
+                        onCommit={(quantity) => {
+                          hideMaxQuantityNotice(item.id)
                           onSetQuantity(item.id, quantity)
-                        }
-                      />
-                      <span
-                        className="quantity-increase-control"
-                        onPointerDownCapture={(event) => {
-                          if (atStockLimit(item)) {
-                            event.preventDefault()
-                            showQuantityLimitTooltip(item.id, "maximum")
-                          }
                         }}
-                      >
+                      />
+                      <span className="quantity-increase-control">
                         <button
                           type="button"
                           aria-label="Øk antall"
                           title="Øk antall"
                           aria-busy={quantityActions[item.id] === 1}
-                          aria-describedby={
-                            quantityLimitTooltip?.itemId === item.id
-                              ? `quantity-limit-tooltip-${item.id}`
-                              : undefined
-                          }
-                          disabled={
-                            atStockLimit(item) || Boolean(quantityActions[item.id])
-                          }
-                          onClick={() => handleQuantityChange(item.id, 1)}
+                          onClick={() => handleIncrease(item)}
                         >
                           {quantityActions[item.id] === 1 ? (
                             <span className="quantity-spinner" aria-hidden="true" />
                           ) : (
-                            <img
-                              src={
-                                atStockLimit(item)
-                                  ? assetUrl("assets/814c4.svg")
-                                  : assetUrl("assets/3e3c3.svg")
-                              }
-                              alt=""
-                            />
+                            <img src={assetUrl("assets/3e3c3.svg")} alt="" />
                           )}
                         </button>
                       </span>
-                      {quantityLimitTooltip?.itemId === item.id && (
+                      {quantityLimitTooltip === item.id && (
                         <span
                           className="stock-limit-tooltip"
                           id={`quantity-limit-tooltip-${item.id}`}
                           role="tooltip"
                         >
                           <span className="stock-limit-tooltip-content">
-                            {quantityLimitTooltip.limit === "minimum"
-                              ? "Fjern varen ved å klikke på søppelbøtta"
-                              : "Maksimalt antall nådd"}
+                            Fjern varen ved å klikke på søppelbøtta
                           </span>
                           <span className="stock-limit-tooltip-arrow">
                             <img
@@ -1267,7 +1273,19 @@ function CartStep({
   return (
     <>
       <h1>Dine varer</h1>
-      <UnavailableInfoMessage />
+      {soldOutItems.length > 0 && (
+        <UnavailableSection
+          items={soldOutItems}
+          appliedCoupons={appliedCoupons}
+          className="cart-unavailable-section"
+          favoriteItems={favoriteItems}
+          onToggleFavorite={onToggleFavorite}
+          onMoreInfo={() => setUnavailableInfoModalOpen(true)}
+          onRemoveAll={() =>
+            onRemoveItems(soldOutItems.map((item) => item.id))
+          }
+        />
+      )}
       {storeHeading && (
         <ClickAndCollectHeading
           label={storeHeading.label}
@@ -1277,24 +1295,9 @@ function CartStep({
       {visibleItems.length === 0 ? (
         <p className="cart-empty">Handlekurven din er tom.</p>
       ) : (
-        <>
-          {availableItems.length > 0 && (
-            <div className="cart-list">{availableItems.map(renderCard)}</div>
-          )}
-          {soldOutItems.length > 0 && (
-            <UnavailableSection
-              items={soldOutItems}
-              appliedCoupons={appliedCoupons}
-              className="cart-unavailable-section"
-              favoriteItems={favoriteItems}
-              onToggleFavorite={onToggleFavorite}
-              onMoreInfo={() => setUnavailableInfoModalOpen(true)}
-              onRemoveAll={() =>
-                onRemoveItems(soldOutItems.map((item) => item.id))
-              }
-            />
-          )}
-        </>
+        availableItems.length > 0 && (
+          <div className="cart-list">{availableItems.map(renderCard)}</div>
+        )
       )}
 
       <div className={`coupon-card ${couponOpen ? "is-open" : ""}`}>
@@ -1431,7 +1434,6 @@ function CartStep({
             onNext()
           }}
           disabled={!availableItems.length}
-          aria-disabled={overStockCount > 0 || undefined}
         >
           Neste
         </button>
@@ -1450,17 +1452,6 @@ function CartStep({
         />
       )}
     </>
-  )
-}
-
-// Shown at the top of step 1 and 3 when the cart has unavailable products.
-// Styled like the "Ordren din sendes som flere pakker." notice.
-function UnavailableInfoMessage() {
-  return (
-    <div className="split-notice unavailable-info-message" role="status">
-      <img src={assetUrl("assets/general-warning-info.svg")} alt="" />
-      <span>Noen av varene i handlekurven din kan ikke leveres.</span>
-    </div>
   )
 }
 
@@ -2041,7 +2032,9 @@ function PackageCard({
             aria-haspopup="dialog"
           >
             <img src={assetUrl("assets/unavailable-more-info.svg")} alt="" />
-            Mer info
+            {source === "Fra sentrallager"
+              ? "Om sentrallager"
+              : "Om butikk-levering"}
           </button>
         </div>
       )}
@@ -2406,7 +2399,19 @@ function DeliveryStep({
   return (
     <>
       <h1>Leveringsalternativer</h1>
-      {unavailableItems.length > 0 && <UnavailableInfoMessage />}
+      {unavailableItems.length > 0 && (
+        <UnavailableSection
+          items={unavailableItems}
+          appliedCoupons={appliedCoupons}
+          className="delivery-unavailable-section"
+          favoriteItems={favoriteItems}
+          onToggleFavorite={onToggleFavorite}
+          onMoreInfo={() => setSourceModal("Info om levering")}
+          onRemoveAll={() =>
+            onRemoveItems(unavailableItems.map((item) => item.id))
+          }
+        />
+      )}
       {visiblePackages.length > 1 && (
         <div className="split-notice" role="status">
           <img src={assetUrl("assets/step3-obs/48d56.svg")} alt="" />
@@ -2461,19 +2466,6 @@ function DeliveryStep({
           </Fragment>
         ))}
       </div>
-      {unavailableItems.length > 0 && (
-        <UnavailableSection
-          items={unavailableItems}
-          appliedCoupons={appliedCoupons}
-          className="delivery-unavailable-section"
-          favoriteItems={favoriteItems}
-          onToggleFavorite={onToggleFavorite}
-          onMoreInfo={() => setSourceModal("Info om levering")}
-          onRemoveAll={() =>
-            onRemoveItems(unavailableItems.map((item) => item.id))
-          }
-        />
-      )}
       <div className="checkout-actions">
         <button className="button-back" type="button" onClick={onBack}>
           Tilbake
